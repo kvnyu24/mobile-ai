@@ -19,7 +19,7 @@ A robust framework for deploying AI models on mobile devices with hardware accel
 ## Requirements
 
 - Android SDK 21+ (Android 5.0 or higher)
-- Android NDK r21+ 
+- Android NDK r21+
 - CMake 3.18.1+
 - Hardware-specific SDKs:
   - MediaTek NeuroPilot SDK
@@ -27,7 +27,7 @@ A robust framework for deploying AI models on mobile devices with hardware accel
 
 ## Project Structure
 
-```
+```bash
 mobile-ai/
 ├── app/
 │   ├── src/
@@ -53,16 +53,19 @@ mobile-ai/
 ## Getting Started
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/mobile-ai.git
 ```
 
-2. Install dependencies:
+1. Install dependencies:
+
 - Download and install Android Studio
 - Install the Android NDK and CMake through Android Studio's SDK Manager
 - Download the required hardware-specific SDKs from MediaTek and Qualcomm
 
-3. Build the project:
+1. Build the project:
+
 ```bash
 ./gradlew build
 ```
@@ -129,4 +132,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - MediaTek for NeuroPilot SDK
 - Qualcomm for Neural Processing SDK
-- TensorFlow, PyTorch, and ONNX Runtime teams 
+- TensorFlow, PyTorch, and ONNX Runtime teams
