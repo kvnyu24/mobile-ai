@@ -1,0 +1,123 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+
+# Gradle files
+.gradle/
+build/
+local.properties
+
+# Android Studio
+*.iml
+.idea/
+.navigation/
+captures/
+
+# NDK
+obj/
+.externalNativeBuild/
+.cxx/
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Keystore files
+*.jks
+*.keystore
+
+# Log Files
+*.log
+
+# Android Studio generated files and folders
+*.hprof
+.gradle
+.idea/
+*.iml
+.externalNativeBuild/
+.cxx/
+*.apk
+*.ap_
+*.aab
+release/
+
+# Version control
+vcs.xml
+
+# Hardware SDK specific
+neuroPilot/
+snapdragon/
+
+# C++ related
+*.o
+*.so
+*.a
+*.lib
+*.dll
+*.dylib
+*.out
+*.exe
+*.app
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# JDK related
+*.class
+*.jar
+hs_err_pid*
+.mtj.tmp/
+*.war
+*.ear
+*.nar
+*.pkg
+*.pkg.tmp
+# Python related
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
