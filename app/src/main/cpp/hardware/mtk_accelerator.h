@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <neuropilot/neuropilot.h>
 
 namespace mobileai {
 namespace hardware {
@@ -14,24 +15,33 @@ public:
     ~MTKAccelerator() override;
 
     // Core functionality
-    bool Initialize() override;
+    ErrorCode Initialize() override;
     bool IsAvailable() const override;
-    bool RunInference(const std::vector<float>& input,
-                     std::vector<float>& output) override;
+    ErrorCode RunInference(const std::vector<float>& input,
+                          std::vector<float>& output,
+                          PerformanceMetrics* metrics = nullptr) override;
 
     // Configuration and capabilities                     
     std::string GetAcceleratorType() const override;
     std::vector<std::string> GetSupportedOperations() const override;
-    bool SetPowerProfile(const std::string& profile) override;
+    bool SupportsOperation(const std::string& operation) const override;
+    ErrorCode SetPowerProfile(PowerProfile profile) override;
+    PowerProfile GetCurrentPowerProfile() const override;
+    PerformanceMetrics GetPerformanceMetrics() const override;
 
-    // Enhanced functionality
+    // Resource management
+    void ReleaseResources() override;
+    bool ResetState() override;
+
+    // Version information
+    std::string GetDriverVersion() const override;
+    std::string GetFirmwareVersion() const override;
+
+    // Enhanced functionality (MTK-specific extensions)
     bool SetThreadCount(int thread_count);
     bool SetPreferredMemoryType(const std::string& memory_type);
     float GetLastInferenceTime() const;
     bool EnableProfiling(bool enable);
-    
-    // Resource management
-    void ReleaseResources();
     bool ReloadModel();
 
     // Error handling

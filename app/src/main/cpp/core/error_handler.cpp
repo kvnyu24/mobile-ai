@@ -6,23 +6,39 @@
 #include <unordered_map>
 #include <mutex>
 #include <sstream>
-#include <execinfo.h>
 #include <cxxabi.h>
 #include <sys/utsname.h>
+#include <unwind.h>
+#include <dlfcn.h>
+#include <thread>
 
 namespace mobileai {
 namespace core {
+
+// Define logging macros consistent with other files
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "ErrorHandler", __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, "ErrorHandler", __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "ErrorHandler", __VA_ARGS__)
 
 class ErrorHandler::Impl {
 public:
     Impl() : automatic_recovery_(true), max_retries_(3), healthy_(true) {}
 
     void RegisterErrorCallback(ErrorCallback callback) {
+        if (!callback) {
+            LOGW("Attempting to register null error callback");
+            return;
+        }
         std::lock_guard<std::mutex> lock(mutex_);
         callbacks_.push_back(callback);
     }
 
     void RegisterRecoveryStrategy(ErrorCategory category, RecoveryStrategy strategy) {
+        if (!strategy) {
+            LOGW("Attempting to register null recovery strategy for category %s", 
+                 GetCategoryString(category).c_str());
+            return;
+        }
         std::lock_guard<std::mutex> lock(mutex_);
         recovery_strategies_[category] = strategy;
     }
@@ -33,15 +49,21 @@ public:
         // Log error
         LogError(context);
         
-        // Store in history
+        // Store in history with size limit to prevent memory issues
+        const size_t MAX_HISTORY = 1000;
+        if (error_history_.size() >= MAX_HISTORY) {
+            error_history_.erase(error_history_.begin());
+        }
         error_history_.push_back(context);
         
         // Notify callbacks
         for (const auto& callback : callbacks_) {
             try {
                 callback(context);
+            } catch (const std::exception& e) {
+                LOGE("Error callback threw exception: %s", e.what());
             } catch (...) {
-                // Ignore callback errors
+                LOGE("Error callback threw unknown exception");
             }
         }
 
@@ -58,11 +80,16 @@ public:
                     ErrorSeverity severity,
                     ErrorCategory category,
                     const std::string& component) {
+        if (message.empty()) {
+            LOGW("Empty error message reported");
+            return;
+        }
+
         ErrorContext context;
         context.message = message;
         context.severity = severity;
         context.category = category;
-        context.component = component;
+        context.component = component.empty() ? "Unknown" : component;
         context.timestamp = std::chrono::system_clock::now().time_since_epoch().count();
         context.stack_trace = CaptureStackTrace();
         context.device_info = GetDeviceInfo();
@@ -75,29 +102,46 @@ public:
         
         auto it = recovery_strategies_.find(context.category);
         if (it == recovery_strategies_.end()) {
+            LOGI("No recovery strategy found for category %s", 
+                 GetCategoryString(context.category).c_str());
             return false;
         }
 
         int retries = 0;
         while (retries < max_retries_) {
             try {
+                LOGI("Attempting recovery (try %d/%d)", retries + 1, max_retries_);
                 if (it->second(context)) {
+                    LOGI("Recovery successful");
                     return true;
                 }
+            } catch (const std::exception& e) {
+                LOGE("Recovery attempt failed: %s", e.what());
             } catch (...) {
-                // Ignore recovery errors
+                LOGE("Recovery attempt failed with unknown error");
             }
             retries++;
+            
+            // Add exponential backoff between retries
+            if (retries < max_retries_) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100 * (1 << retries)));
+            }
         }
 
+        LOGE("Recovery failed after %d attempts", max_retries_);
         return false;
     }
 
     void SetAutomaticRecovery(bool enabled) {
         automatic_recovery_ = enabled;
+        LOGI("Automatic recovery %s", enabled ? "enabled" : "disabled");
     }
 
     void SetMaxRetries(int retries) {
+        if (retries < 0) {
+            LOGW("Invalid retry count %d, using default", retries);
+            retries = 3;
+        }
         max_retries_ = retries;
     }
 
@@ -109,9 +153,15 @@ public:
     void ClearErrorHistory() {
         std::lock_guard<std::mutex> lock(mutex_);
         error_history_.clear();
+        LOGI("Error history cleared");
     }
 
     bool ExportErrorLogs(const std::string& path) const {
+        if (path.empty()) {
+            LOGE("Empty export path provided");
+            return false;
+        }
+
         std::lock_guard<std::mutex> lock(mutex_);
         
         try {
@@ -129,9 +179,20 @@ public:
             }
 
             Json::StreamWriterBuilder writer;
+            writer["indentation"] = "    ";  // Pretty print for better readability
             std::ofstream file(path);
-            return file.is_open() ? (file << Json::writeString(writer, root), true) : false;
+            if (!file.is_open()) {
+                LOGE("Failed to open file for writing: %s", path.c_str());
+                return false;
+            }
+            file << Json::writeString(writer, root);
+            LOGI("Successfully exported error logs to %s", path.c_str());
+            return true;
+        } catch (const std::exception& e) {
+            LOGE("Failed to export error logs: %s", e.what());
+            return false;
         } catch (...) {
+            LOGE("Failed to export error logs: unknown error");
             return false;
         }
     }
@@ -149,6 +210,39 @@ public:
         error_history_.clear();
         healthy_ = true;
         system_status_ = "System reset successfully";
+        LOGI("System reset completed");
+    }
+
+    void RetryOperation(const std::function<bool()>& operation, int max_retries) {
+        int retries = 0;
+        while (retries < max_retries) {
+            if (operation()) {
+                return;
+            }
+            // Use platform-specific sleep
+            usleep(100000 * (1 << retries));  // 100ms * exponential backoff
+            retries++;
+        }
+    }
+
+    std::string GetStackTrace() const {
+        std::string stacktrace = "Stack trace:\n";
+        
+        // Use Android-specific debug utilities
+        void* buffer[MAX_STACK_FRAMES];
+        int frames = 0;
+        
+        // Get the backtrace using Android unwinder
+        frames = unwind_backtrace(buffer, 0, MAX_STACK_FRAMES);
+        
+        for (int i = 0; i < frames; i++) {
+            Dl_info info;
+            if (dladdr(buffer[i], &info)) {
+                stacktrace += StringFormat("  #%d: %s\n", i, info.dli_sname ? info.dli_sname : "<unknown>");
+            }
+        }
+        
+        return stacktrace;
     }
 
 private:
@@ -172,10 +266,11 @@ private:
         }
 
         __android_log_print(priority, "ErrorHandler",
-                          "[%s] %s: %s",
+                          "[%s] %s: %s\nStack trace:\n%s",
                           context.component.c_str(),
                           GetCategoryString(context.category).c_str(),
-                          context.message.c_str());
+                          context.message.c_str(),
+                          context.stack_trace.c_str());
     }
 
     std::string GetCategoryString(ErrorCategory category) const {
@@ -193,8 +288,15 @@ private:
     void UpdateSystemHealth(const ErrorContext& context) {
         if (context.severity == ErrorSeverity::CRITICAL) {
             healthy_ = false;
+            LOGE("System health compromised due to critical error");
         }
-        system_status_ = "Last error: " + context.message;
+        
+        std::ostringstream status;
+        status << "Last error: " << context.message;
+        if (!healthy_) {
+            status << " (System unhealthy)";
+        }
+        system_status_ = status.str();
     }
 
     std::string CaptureStackTrace() {
@@ -202,6 +304,10 @@ private:
         void* callstack[max_frames];
         int frames = backtrace(callstack, max_frames);
         char** symbols = backtrace_symbols(callstack, frames);
+        
+        if (!symbols) {
+            return "Failed to capture stack trace";
+        }
         
         std::ostringstream trace;
         for (int i = 0; i < frames; i++) {
@@ -230,6 +336,7 @@ private:
     std::string GetDeviceInfo() {
         struct utsname system_info;
         if (uname(&system_info) == -1) {
+            LOGE("Failed to get device info: %s", strerror(errno));
             return "Failed to get device info";
         }
 
@@ -309,6 +416,14 @@ std::string ErrorHandler::GetSystemStatus() const {
 
 void ErrorHandler::ResetSystem() {
     pImpl->ResetSystem();
+}
+
+void ErrorHandler::RetryOperation(const std::function<bool()>& operation, int max_retries) {
+    pImpl->RetryOperation(operation, max_retries);
+}
+
+std::string ErrorHandler::GetStackTrace() const {
+    return pImpl->GetStackTrace();
 }
 
 } // namespace core

@@ -1,35 +1,43 @@
 #include "mtk_accelerator.h"
 #include <android/log.h>
 #include <chrono>
+#include <algorithm>
+#include "core/error_handler.h"
 
 namespace mobileai {
 namespace hardware {
 
 class MTKAccelerator::Impl {
 public:
-    Impl() : current_power_profile_(PowerProfile::BALANCED),
+    Impl() : current_power_profile_("balanced"),
              last_inference_time_ms_(0.0f),
              thread_count_(1),
              profiling_enabled_(false),
-             neuropilot_handle_(nullptr) {}
+             neuropilot_handle_(nullptr),
+             error_handler_(std::make_unique<core::ErrorHandler>()) {}
+             
     ~Impl() {
         if (neuropilot_handle_) {
             NeuroPilotClose(neuropilot_handle_);
         }
     }
 
-    ErrorCode Initialize() {
+    HardwareAccelerator::ErrorCode Initialize() {
         NeuroPilotConfig config{};
         config.version = NEUROPILOT_VERSION_1;
         config.flags = NEUROPILOT_FLAG_NONE;
         
         auto status = NeuroPilotInit(&config, &neuropilot_handle_);
         if (status != NEUROPILOT_NO_ERROR) {
-            __android_log_print(ANDROID_LOG_ERROR, "MTKAccelerator", 
-                              "Failed to initialize NeuroPilot: %d", status);
-            return ErrorCode::INITIALIZATION_FAILED;
+            error_handler_->ReportError(
+                "Failed to initialize NeuroPilot",
+                core::ErrorSeverity::Critical,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
+            return HardwareAccelerator::ErrorCode::INITIALIZATION_FAILED;
         }
-        return ErrorCode::SUCCESS;
+        return HardwareAccelerator::ErrorCode::SUCCESS;
     }
 
     bool IsAvailable() const {
@@ -40,6 +48,12 @@ public:
         NeuroPilotHardwareInfo hw_info{};
         auto status = NeuroPilotGetHardwareInfo(neuropilot_handle_, &hw_info);
         if (status != NEUROPILOT_NO_ERROR) {
+            error_handler_->ReportError(
+                "Failed to get hardware info",
+                core::ErrorSeverity::Warning,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
             return false;
         }
         
@@ -56,11 +70,17 @@ public:
         return std::find(ops.begin(), ops.end(), operation) != ops.end();
     }
 
-    ErrorCode RunInference(const std::vector<float>& input,
-                          std::vector<float>& output,
-                          PerformanceMetrics* metrics) {
+    HardwareAccelerator::ErrorCode RunInference(const std::vector<float>& input,
+                                              std::vector<float>& output,
+                                              HardwareAccelerator::PerformanceMetrics* metrics = nullptr) {
         if (!neuropilot_handle_) {
-            return ErrorCode::NOT_INITIALIZED;
+            error_handler_->ReportError(
+                "NeuroPilot handle is null",
+                core::ErrorSeverity::Error,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
+            return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
         }
 
         auto start = std::chrono::high_resolution_clock::now();
@@ -80,9 +100,13 @@ public:
                                       thread_count_);
                                       
         if (status != NEUROPILOT_NO_ERROR) {
-            __android_log_print(ANDROID_LOG_ERROR, "MTKAccelerator", 
-                              "Inference failed: %d", status);
-            return ErrorCode::INFERENCE_ERROR;
+            error_handler_->ReportError(
+                "Inference execution failed",
+                core::ErrorSeverity::Error,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
+            return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
         }
 
         auto end = std::chrono::high_resolution_clock::now();
@@ -94,64 +118,112 @@ public:
             metrics->utilizationPercent = GetUtilization();
         }
 
-        return ErrorCode::SUCCESS;
+        return HardwareAccelerator::ErrorCode::SUCCESS;
     }
 
-    ErrorCode SetPowerProfile(PowerProfile profile) {
+    HardwareAccelerator::ErrorCode SetPowerProfile(HardwareAccelerator::PowerProfile profile) {
         if (!neuropilot_handle_) {
-            return ErrorCode::NOT_INITIALIZED;
+            error_handler_->ReportError(
+                "Cannot set power profile - NeuroPilot not initialized",
+                core::ErrorSeverity::Warning,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
+            return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
         }
 
         NeuroPilotPowerConfig power_config{};
         switch (profile) {
-            case PowerProfile::LOW_POWER:
+            case HardwareAccelerator::PowerProfile::LOW_POWER:
                 power_config.performance_mode = NEUROPILOT_POWER_SAVE;
+                current_power_profile_ = "low_power";
                 break;
-            case PowerProfile::BALANCED:
+            case HardwareAccelerator::PowerProfile::BALANCED:
                 power_config.performance_mode = NEUROPILOT_BALANCED;
+                current_power_profile_ = "balanced";
                 break;
-            case PowerProfile::HIGH_PERFORMANCE:
+            case HardwareAccelerator::PowerProfile::HIGH_PERFORMANCE:
                 power_config.performance_mode = NEUROPILOT_PERFORMANCE;
+                current_power_profile_ = "high_performance";
                 break;
             default:
-                return ErrorCode::INVALID_ARGUMENT;
+                error_handler_->ReportError(
+                    "Invalid power profile specified",
+                    core::ErrorSeverity::Warning,
+                    core::ErrorCategory::Hardware,
+                    "MTKAccelerator"
+                );
+                return HardwareAccelerator::ErrorCode::INVALID_INPUT;
         }
 
         auto status = NeuroPilotSetPowerConfig(neuropilot_handle_, &power_config);
         if (status != NEUROPILOT_NO_ERROR) {
-            return ErrorCode::HARDWARE_ERROR;
+            error_handler_->ReportError(
+                "Failed to set power config",
+                core::ErrorSeverity::Warning,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
+            return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
         }
 
-        current_power_profile_ = profile;
-        return ErrorCode::SUCCESS;
+        return HardwareAccelerator::ErrorCode::SUCCESS;
     }
 
-    PowerProfile GetCurrentPowerProfile() const {
+    std::string GetCurrentPowerProfile() const {
         return current_power_profile_;
     }
 
-    PerformanceMetrics GetPerformanceMetrics() const {
-        PerformanceMetrics metrics;
-        metrics.inferenceTimeMs = last_inference_time_ms_;
-        metrics.powerConsumptionMw = GetPowerConsumption();
-        metrics.utilizationPercent = GetUtilization();
-        return metrics;
+    float GetLastInferenceTime() const {
+        return last_inference_time_ms_;
     }
 
     bool SetThreadCount(int count) {
-        if (count > 0) {
-            thread_count_ = count;
-            return true;
+        if (count <= 0) {
+            error_handler_->ReportError(
+                "Invalid thread count specified",
+                core::ErrorSeverity::Warning,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
+            return false;
         }
-        return false;
+        thread_count_ = count;
+        return true;
     }
 
-    void EnableProfiling(bool enable) {
+    bool EnableProfiling(bool enable) {
         profiling_enabled_ = enable;
-        if (neuropilot_handle_) {
-            NeuroPilotSetProfiling(neuropilot_handle_, 
-                                 enable ? NEUROPILOT_PROFILE_ENABLE : NEUROPILOT_PROFILE_DISABLE);
+        if (!neuropilot_handle_) {
+            error_handler_->ReportError(
+                "Cannot enable profiling - NeuroPilot not initialized",
+                core::ErrorSeverity::Warning,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
+            return false;
         }
+        
+        auto status = NeuroPilotSetProfiling(neuropilot_handle_, 
+                                    enable ? NEUROPILOT_PROFILE_ENABLE : NEUROPILOT_PROFILE_DISABLE);
+        if (status != NEUROPILOT_NO_ERROR) {
+            error_handler_->ReportError(
+                "Failed to set profiling mode",
+                core::ErrorSeverity::Warning,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
+            return false;
+        }
+        return true;
+    }
+
+    std::string GetLastErrorMessage() const {
+        return error_handler_->GetSystemStatus();
+    }
+
+    int GetLastErrorCode() const {
+        return last_error_code_;
     }
 
 private:
@@ -163,6 +235,12 @@ private:
         NeuroPilotPowerStats power_stats{};
         auto status = NeuroPilotGetPowerStats(neuropilot_handle_, &power_stats);
         if (status != NEUROPILOT_NO_ERROR) {
+            error_handler_->ReportError(
+                "Failed to get power stats",
+                core::ErrorSeverity::Warning,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
             return 0.0f;
         }
         return power_stats.power_consumption;
@@ -176,22 +254,30 @@ private:
         NeuroPilotPerformanceStats perf_stats{};
         auto status = NeuroPilotGetPerformanceStats(neuropilot_handle_, &perf_stats);
         if (status != NEUROPILOT_NO_ERROR) {
+            error_handler_->ReportError(
+                "Failed to get performance stats",
+                core::ErrorSeverity::Warning,
+                core::ErrorCategory::Hardware,
+                "MTKAccelerator"
+            );
             return 0.0f;
         }
         return perf_stats.utilization;
     }
 
-    PowerProfile current_power_profile_;
+    std::string current_power_profile_;
     float last_inference_time_ms_;
     int thread_count_;
     bool profiling_enabled_;
     NeuroPilotHandle neuropilot_handle_;
+    std::unique_ptr<core::ErrorHandler> error_handler_;
+    int last_error_code_;
 };
 
 MTKAccelerator::MTKAccelerator() : pImpl(std::make_unique<Impl>()) {}
 MTKAccelerator::~MTKAccelerator() = default;
 
-ErrorCode MTKAccelerator::Initialize() {
+HardwareAccelerator::ErrorCode MTKAccelerator::Initialize() {
     return pImpl->Initialize();
 }
 
@@ -199,9 +285,10 @@ bool MTKAccelerator::IsAvailable() const {
     return pImpl->IsAvailable();
 }
 
-ErrorCode MTKAccelerator::RunInference(const std::vector<float>& input,
-                                     std::vector<float>& output,
-                                     PerformanceMetrics* metrics) {
+HardwareAccelerator::ErrorCode MTKAccelerator::RunInference(
+    const std::vector<float>& input,
+    std::vector<float>& output,
+    PerformanceMetrics* metrics) {
     return pImpl->RunInference(input, output, metrics);
 }
 
@@ -213,29 +300,28 @@ std::vector<std::string> MTKAccelerator::GetSupportedOperations() const {
     return pImpl->GetSupportedOperations();
 }
 
-bool MTKAccelerator::SupportsOperation(const std::string& operation) const {
-    return pImpl->SupportsOperation(operation);
-}
-
-ErrorCode MTKAccelerator::SetPowerProfile(PowerProfile profile) {
+HardwareAccelerator::ErrorCode MTKAccelerator::SetPowerProfile(PowerProfile profile) {
     return pImpl->SetPowerProfile(profile);
-}
-
-PowerProfile MTKAccelerator::GetCurrentPowerProfile() const {
-    return pImpl->GetCurrentPowerProfile();
-}
-
-PerformanceMetrics MTKAccelerator::GetPerformanceMetrics() const {
-    return pImpl->GetPerformanceMetrics();
 }
 
 bool MTKAccelerator::SetThreadCount(int thread_count) {
     return pImpl->SetThreadCount(thread_count);
 }
 
+float MTKAccelerator::GetLastInferenceTime() const {
+    return pImpl->GetLastInferenceTime();
+}
+
 bool MTKAccelerator::EnableProfiling(bool enable) {
-    pImpl->EnableProfiling(enable);
-    return true;
+    return pImpl->EnableProfiling(enable);
+}
+
+std::string MTKAccelerator::GetLastErrorMessage() const {
+    return pImpl->GetLastErrorMessage();
+}
+
+int MTKAccelerator::GetLastErrorCode() const {
+    return pImpl->GetLastErrorCode();
 }
 
 } // namespace hardware

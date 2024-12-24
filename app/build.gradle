@@ -26,6 +26,10 @@ android {
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
+        
+        vectorDrawables {
+            useSupportLibrary true
+        }
     }
     
     buildTypes {
@@ -38,6 +42,7 @@ android {
     externalNativeBuild {
         cmake {
             path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
         }
     }
     
@@ -49,6 +54,8 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
+
+    ndkVersion "23.1.7779620"
 }
 
 dependencies {
@@ -68,9 +75,6 @@ dependencies {
     
     // ONNX Runtime
     implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.14.0'
-    
-    // Vulkan
-    implementation 'com.google.android.vulkan:vulkan-cpp-header:1.2.189'
     
     // Testing
     testImplementation 'junit:junit:4.13.2'

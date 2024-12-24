@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "*.erd": "json",
+        "*.vuerd": "json",
+        "chrono": "cpp",
+        "fstream": "cpp",
+        "filesystem": "cpp"
+    }
+}

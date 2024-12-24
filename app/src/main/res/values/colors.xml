@@ -25,4 +25,6 @@
     <color name="text_secondary_light">#99000000</color>
     <color name="text_primary_dark">#DEFFFFFF</color>
     <color name="text_secondary_dark">#99FFFFFF</color>
+    
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

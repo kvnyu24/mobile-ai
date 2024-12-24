@@ -4,7 +4,12 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/app/src/main/cpp/**",
-                "${workspaceFolder}/app/src/main/cpp"
+                "${workspaceFolder}/app/src/main/cpp",
+                "${workspaceFolder}/app/src/main/cpp/core",
+                "${workspaceFolder}/app/src/main/cpp/third_party/**",
+                "${workspaceFolder}/app/src/main/cpp/third_party/tensorflow/include",
+                "${workspaceFolder}/app/src/main/cpp/third_party/neuropilot/include",
+                "${env:ANDROID_NDK}/sources/android/log/include"
             ],
             "defines": [],
             "macFrameworkPath": [],

@@ -25,13 +25,21 @@ public:
     ~QualcommAccelerator() override;
 
     // Base class interface implementation
-    bool Initialize() override;
+    ErrorCode Initialize() override;
     bool IsAvailable() const override;
-    bool RunInference(const std::vector<float>& input,
-                     std::vector<float>& output) override;
+    ErrorCode RunInference(const std::vector<float>& input,
+                          std::vector<float>& output,
+                          PerformanceMetrics* metrics = nullptr) override;
     std::string GetAcceleratorType() const override;
     std::vector<std::string> GetSupportedOperations() const override;
-    bool SetPowerProfile(const std::string& profile) override;
+    bool SupportsOperation(const std::string& operation) const override;
+    ErrorCode SetPowerProfile(HardwareAccelerator::PowerProfile profile) override;
+    HardwareAccelerator::PowerProfile GetCurrentPowerProfile() const override;
+    PerformanceMetrics GetPerformanceMetrics() const override;
+    void ReleaseResources() override;
+    bool ResetState() override;
+    std::string GetDriverVersion() const override;
+    std::string GetFirmwareVersion() const override;
 
     // Qualcomm-specific configuration
     bool SetDSPPowerLevel(int level);
@@ -44,10 +52,6 @@ public:
     bool SetNumThreads(int num_threads);
     float GetLastInferenceTime() const;
     bool SupportsDynamicBatching() const;
-    
-    // Resource management
-    void ReleaseResources();
-    bool ReloadModel();
     
     // Performance monitoring
     struct PerformanceStats {

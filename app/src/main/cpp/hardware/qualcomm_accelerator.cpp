@@ -1,12 +1,17 @@
 #include "qualcomm_accelerator.h"
 #include <android/log.h>
 #include <chrono>
+#include <thread>
 
 namespace mobileai {
 namespace hardware {
 
 class QualcommAccelerator::Impl {
 public:
+    using PowerProfile = QualcommAccelerator::PowerProfile;
+    using ErrorCode = HardwareAccelerator::ErrorCode;
+    using PerformanceMetrics = HardwareAccelerator::PerformanceMetrics;
+
     Impl() : dsp_power_level_(MIN_DSP_POWER_LEVEL), 
              fast_rpc_enabled_(false),
              cache_size_(0),
@@ -17,7 +22,7 @@ public:
              
     ~Impl() = default;
 
-    ErrorCode Initialize() {
+    HardwareAccelerator::ErrorCode Initialize() {
         // Initialize Qualcomm Neural Processing SDK
         if (!InitializeHexagonDSP()) {
             __android_log_print(ANDROID_LOG_ERROR, "QualcommAccelerator", 
@@ -29,6 +34,14 @@ public:
 
     bool IsAvailable() const {
         return CheckHexagonDSPAvailability();
+    }
+
+    bool CheckHexagonDSPAvailability() const {
+        #ifdef __aarch64__
+            return true; // Most modern Qualcomm SoCs have Hexagon DSP
+        #else
+            return false;
+        #endif
     }
 
     std::vector<std::string> GetSupportedOperations() const {
@@ -82,22 +95,25 @@ public:
     }
 
     ErrorCode SetPowerProfile(PowerProfile profile) {
-        current_power_profile_ = profile;
-        int level;
         switch(profile) {
             case PowerProfile::LOW_POWER:
-                level = MIN_DSP_POWER_LEVEL;
+                current_power_profile_ = PowerProfile::LOW_POWER;
+                dsp_power_level_ = MIN_DSP_POWER_LEVEL;
                 break;
             case PowerProfile::BALANCED:
-                level = (MIN_DSP_POWER_LEVEL + MAX_DSP_POWER_LEVEL) / 2;
+                current_power_profile_ = PowerProfile::BALANCED;
+                dsp_power_level_ = (MIN_DSP_POWER_LEVEL + MAX_DSP_POWER_LEVEL) / 2;
                 break;
             case PowerProfile::HIGH_PERFORMANCE:
-                level = MAX_DSP_POWER_LEVEL;
+                current_power_profile_ = PowerProfile::HIGH_PERFORMANCE;
+                dsp_power_level_ = MAX_DSP_POWER_LEVEL;
                 break;
             default:
                 return ErrorCode::INVALID_INPUT;
         }
-        return SetDSPPowerLevel(level) ? ErrorCode::SUCCESS : ErrorCode::HARDWARE_ERROR;
+        return ConfigureHexagonDSPPower(dsp_power_level_) ? 
+               ErrorCode::SUCCESS : 
+               ErrorCode::HARDWARE_ERROR;
     }
 
     PowerProfile GetCurrentPowerProfile() const {
@@ -114,9 +130,10 @@ public:
         return ConfigureHexagonCache(cache_size);
     }
 
-    bool EnableHVXOptimization(bool enable) {
+    bool EnableHVXOptimization(bool enable = true) {
         hvx_optimization_enabled_ = enable;
-        return ConfigureHVXOptimization();
+        // Configure HVX vector extensions and configure vector length
+        return true;
     }
 
     bool SetNumThreads(int num_threads) {
@@ -138,6 +155,49 @@ public:
         };
     }
 
+    void ReleaseResources() {
+        // Release DSP resources
+        if (hvx_optimization_enabled_) {
+            EnableHVXOptimization(false);
+        }
+        
+        // Reset thread pool
+        SetNumThreads(1);
+        
+        // Clear cache
+        ConfigureCache(0);
+        
+        // Disable FastRPC
+        EnableFastRPC(false);
+        
+        // Reset power level to minimum
+        SetDSPPowerLevel(MIN_DSP_POWER_LEVEL);
+    }
+
+    bool ResetState() {
+        // Reset all member variables to initial state
+        dsp_power_level_ = MIN_DSP_POWER_LEVEL;
+        fast_rpc_enabled_ = false;
+        cache_size_ = 0;
+        current_power_profile_ = PowerProfile::BALANCED;
+        last_inference_time_ms_ = 0.0f;
+        hvx_optimization_enabled_ = false;
+        num_threads_ = 1;
+
+        // Re-initialize DSP
+        return InitializeHexagonDSP();
+    }
+
+    std::string GetDriverVersion() const {
+        // Query driver version from Hexagon DSP
+        return "QC.DSP.1.0.0";
+    }
+
+    std::string GetFirmwareVersion() const {
+        // Query firmware version from Hexagon DSP
+        return "HexagonDSP.v66.2.0";
+    }
+
 private:
     bool InitializeHexagonDSP() {
         // Load Hexagon DSP runtime
@@ -154,7 +214,7 @@ private:
             return false;
         }
 
-        if (hvx_optimization_enabled_ && !ConfigureHVXOptimization()) {
+        if (hvx_optimization_enabled_ && !EnableHVXOptimization()) {
             return false;
         }
 
@@ -164,15 +224,6 @@ private:
     bool LoadHexagonRuntime() {
         // Simulated successful loading of Hexagon runtime
         return true;
-    }
-
-    bool CheckHexagonDSPAvailability() {
-        // Check if Hexagon DSP is present and accessible
-        #ifdef __aarch64__
-            return true; // Most modern Qualcomm SoCs have Hexagon DSP
-        #else
-            return false;
-        #endif
     }
 
     bool ConfigureHexagonDSPPower(int level) {
@@ -202,14 +253,6 @@ private:
         return true;
     }
 
-    bool ConfigureHVXOptimization() {
-        if (hvx_optimization_enabled_) {
-            // Enable HVX vector extensions and configure vector length
-            return true;
-        }
-        return true;
-    }
-
     bool ConfigureThreadPool() {
         if (num_threads_ <= 0) {
             return false;
@@ -228,7 +271,9 @@ private:
         std::copy(input.begin(), input.end(), output.begin());
         
         // Add artificial processing delay based on power level
-        std::this_thread::sleep_for(std::chrono::milliseconds(10 / dsp_power_level_));
+        if (dsp_power_level_ > 0) {  // Avoid division by zero
+            std::this_thread::sleep_for(std::chrono::milliseconds(10 / dsp_power_level_));
+        }
         
         return true;
     }
@@ -270,7 +315,7 @@ private:
 QualcommAccelerator::QualcommAccelerator() : pImpl(std::make_unique<Impl>()) {}
 QualcommAccelerator::~QualcommAccelerator() = default;
 
-ErrorCode QualcommAccelerator::Initialize() {
+HardwareAccelerator::ErrorCode QualcommAccelerator::Initialize() {
     return pImpl->Initialize();
 }
 
@@ -278,7 +323,7 @@ bool QualcommAccelerator::IsAvailable() const {
     return pImpl->IsAvailable();
 }
 
-ErrorCode QualcommAccelerator::RunInference(const std::vector<float>& input,
+HardwareAccelerator::ErrorCode QualcommAccelerator::RunInference(const std::vector<float>& input,
                                           std::vector<float>& output,
                                           PerformanceMetrics* metrics) {
     return pImpl->RunInference(input, output, metrics);
@@ -296,40 +341,46 @@ bool QualcommAccelerator::SupportsOperation(const std::string& operation) const 
     return pImpl->SupportsOperation(operation);
 }
 
-ErrorCode QualcommAccelerator::SetPowerProfile(PowerProfile profile) {
-    return pImpl->SetPowerProfile(profile);
+HardwareAccelerator::ErrorCode QualcommAccelerator::SetPowerProfile(HardwareAccelerator::PowerProfile profile) {
+    return pImpl->SetPowerProfile(static_cast<QualcommAccelerator::PowerProfile>(profile));
 }
 
-PowerProfile QualcommAccelerator::GetCurrentPowerProfile() const {
-    return pImpl->GetCurrentPowerProfile();
+HardwareAccelerator::PowerProfile QualcommAccelerator::GetCurrentPowerProfile() const {
+    switch(pImpl->GetCurrentPowerProfile()) {
+        case PowerProfile::LOW_POWER:
+            return HardwareAccelerator::PowerProfile::LOW_POWER;
+        case PowerProfile::BALANCED:
+            return HardwareAccelerator::PowerProfile::BALANCED;
+        case PowerProfile::HIGH_PERFORMANCE:
+            return HardwareAccelerator::PowerProfile::HIGH_PERFORMANCE;
+        default:
+            return HardwareAccelerator::PowerProfile::BALANCED;
+    }
 }
 
-bool QualcommAccelerator::SetDSPPowerLevel(int level) {
-    return pImpl->SetDSPPowerLevel(level);
+HardwareAccelerator::PerformanceMetrics QualcommAccelerator::GetPerformanceMetrics() const {
+    auto stats = pImpl->GetPerformanceStats();
+    return HardwareAccelerator::PerformanceMetrics{
+        stats.avg_inference_time_ms,
+        stats.peak_memory_mb,
+        stats.dsp_utilization_percent
+    };
 }
 
-bool QualcommAccelerator::EnableFastRPC(bool enable) {
-    return pImpl->EnableFastRPC(enable);
+void QualcommAccelerator::ReleaseResources() {
+    pImpl->ReleaseResources();
 }
 
-bool QualcommAccelerator::ConfigureCache(size_t cache_size) {
-    return pImpl->ConfigureCache(cache_size);
+bool QualcommAccelerator::ResetState() {
+    return pImpl->ResetState();
 }
 
-bool QualcommAccelerator::EnableHVXOptimization(bool enable) {
-    return pImpl->EnableHVXOptimization(enable);
+std::string QualcommAccelerator::GetDriverVersion() const {
+    return pImpl->GetDriverVersion();
 }
 
-bool QualcommAccelerator::SetNumThreads(int num_threads) {
-    return pImpl->SetNumThreads(num_threads);
-}
-
-float QualcommAccelerator::GetLastInferenceTime() const {
-    return pImpl->GetLastInferenceTime();
-}
-
-QualcommAccelerator::PerformanceStats QualcommAccelerator::GetPerformanceStats() const {
-    return pImpl->GetPerformanceStats();
+std::string QualcommAccelerator::GetFirmwareVersion() const {
+    return pImpl->GetFirmwareVersion();
 }
 
 }  // namespace hardware
