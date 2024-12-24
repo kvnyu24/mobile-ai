@@ -5,6 +5,10 @@
 #include <json/json.h>
 #include <unordered_map>
 #include <mutex>
+#include <sstream>
+#include <execinfo.h>
+#include <cxxabi.h>
+#include <sys/utsname.h>
 
 namespace mobileai {
 namespace core {
@@ -194,13 +198,49 @@ private:
     }
 
     std::string CaptureStackTrace() {
-        // TODO: Implement stack trace capture
-        return "Stack trace not implemented";
+        const int max_frames = 32;
+        void* callstack[max_frames];
+        int frames = backtrace(callstack, max_frames);
+        char** symbols = backtrace_symbols(callstack, frames);
+        
+        std::ostringstream trace;
+        for (int i = 0; i < frames; i++) {
+            std::string symbol(symbols[i]);
+            
+            // Try to demangle C++ symbols
+            size_t begin = symbol.find('(');
+            size_t end = symbol.find('+', begin);
+            if (begin != std::string::npos && end != std::string::npos) {
+                std::string mangled = symbol.substr(begin + 1, end - begin - 1);
+                int status;
+                char* demangled = abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
+                if (status == 0 && demangled) {
+                    symbol = symbol.substr(0, begin + 1) + demangled + symbol.substr(end);
+                    free(demangled);
+                }
+            }
+            
+            trace << "#" << i << ": " << symbol << "\n";
+        }
+        
+        free(symbols);
+        return trace.str();
     }
 
     std::string GetDeviceInfo() {
-        // TODO: Implement device info gathering
-        return "Device info not implemented";
+        struct utsname system_info;
+        if (uname(&system_info) == -1) {
+            return "Failed to get device info";
+        }
+
+        std::ostringstream info;
+        info << "System: " << system_info.sysname << "\n"
+             << "Node: " << system_info.nodename << "\n"
+             << "Release: " << system_info.release << "\n"
+             << "Version: " << system_info.version << "\n"
+             << "Machine: " << system_info.machine;
+
+        return info.str();
     }
 
     bool automatic_recovery_;
