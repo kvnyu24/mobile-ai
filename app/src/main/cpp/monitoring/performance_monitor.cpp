@@ -5,6 +5,11 @@
 #include <fstream>
 #include <json/json.h>
 #include <numeric>
+#include <sys/sysinfo.h>
+#include <sys/stat.h>
+#include <fstream>
+#include <string>
+#include <vector>
 
 namespace mobileai {
 namespace monitoring {
@@ -196,33 +201,126 @@ private:
     }
 
     double MeasureCPUUsage() {
-        // TODO: Implement CPU usage measurement
-        return 0.0;
+        std::ifstream stat_file("/proc/stat");
+        if (!stat_file.is_open()) return 0.0;
+
+        std::string line;
+        std::getline(stat_file, line);
+        std::vector<long> cpu_times;
+        std::istringstream iss(line);
+        std::string cpu;
+        long value;
+
+        iss >> cpu; // Skip "cpu" label
+        while (iss >> value) {
+            cpu_times.push_back(value);
+        }
+
+        if (cpu_times.size() < 4) return 0.0;
+
+        long idle = cpu_times[3];
+        long total = std::accumulate(cpu_times.begin(), cpu_times.end(), 0L);
+        
+        static long prev_idle = 0;
+        static long prev_total = 0;
+        
+        long diff_idle = idle - prev_idle;
+        long diff_total = total - prev_total;
+        
+        prev_idle = idle;
+        prev_total = total;
+        
+        if (diff_total == 0) return 0.0;
+        return 100.0 * (1.0 - static_cast<double>(diff_idle) / diff_total);
     }
 
     double MeasureMemoryUsage() {
-        // TODO: Implement memory usage measurement
-        return 0.0;
+        struct sysinfo si;
+        if (sysinfo(&si) != 0) return 0.0;
+        
+        double total_ram = si.totalram * si.mem_unit;
+        double free_ram = si.freeram * si.mem_unit;
+        double used_ram = total_ram - free_ram;
+        
+        return (used_ram / total_ram) * 100.0;
     }
 
     double MeasureGPUUsage() {
-        // TODO: Implement GPU usage measurement
-        return 0.0;
+        std::ifstream gpu_file("/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage");
+        if (!gpu_file.is_open()) return 0.0;
+        
+        int usage;
+        gpu_file >> usage;
+        return static_cast<double>(usage);
     }
 
     double MeasurePowerConsumption() {
-        // TODO: Implement power consumption measurement
-        return 0.0;
+        std::ifstream power_file("/sys/class/power_supply/battery/current_now");
+        if (!power_file.is_open()) return 0.0;
+        
+        int current;
+        power_file >> current;
+        
+        std::ifstream voltage_file("/sys/class/power_supply/battery/voltage_now");
+        if (!voltage_file.is_open()) return 0.0;
+        
+        int voltage;
+        voltage_file >> voltage;
+        
+        // Convert to milliwatts
+        return (static_cast<double>(current) * static_cast<double>(voltage)) / 1e9;
     }
 
     double MeasureTemperature() {
-        // TODO: Implement temperature measurement
-        return 0.0;
+        std::ifstream temp_file("/sys/class/thermal/thermal_zone0/temp");
+        if (!temp_file.is_open()) return 0.0;
+        
+        int temp;
+        temp_file >> temp;
+        return temp / 1000.0; // Convert to degrees Celsius
     }
 
     double MeasureNetworkBandwidth() {
-        // TODO: Implement network bandwidth measurement
-        return 0.0;
+        static long prev_bytes = 0;
+        static auto prev_time = std::chrono::steady_clock::now();
+        
+        std::ifstream net_file("/proc/net/dev");
+        if (!net_file.is_open()) return 0.0;
+        
+        std::string line;
+        long total_bytes = 0;
+        
+        // Skip header lines
+        std::getline(net_file, line);
+        std::getline(net_file, line);
+        
+        while (std::getline(net_file, line)) {
+            std::istringstream iss(line);
+            std::string iface;
+            long bytes_in, bytes_out;
+            
+            iss >> iface; // Interface name
+            iss >> bytes_in; // Bytes received
+            
+            // Skip other fields to get to bytes transmitted
+            for (int i = 0; i < 8; ++i) {
+                iss >> bytes_out;
+            }
+            
+            total_bytes += bytes_in + bytes_out;
+        }
+        
+        auto current_time = std::chrono::steady_clock::now();
+        auto time_diff = std::chrono::duration_cast<std::chrono::seconds>(current_time - prev_time).count();
+        
+        if (time_diff == 0) return 0.0;
+        
+        double bandwidth = static_cast<double>(total_bytes - prev_bytes) / time_diff;
+        
+        prev_bytes = total_bytes;
+        prev_time = current_time;
+        
+        return bandwidth / (1024 * 1024); // Convert to MB/s
     }
 
     bool monitoring_;
