@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mobile AI</string>
+    <string name="initialization_error">Initialization failed. Please check your device compatibility and try again.</string>
+    <string name="hardware_init_error">Hardware acceleration initialization failed. Your device may not support required features.</string>
+    <string name="no_accelerators_error">No compatible hardware accelerators found on this device</string>
+    <string name="native_library_error">Unable to load native library. Please ensure your device meets minimum requirements.</string>
+    <string name="library_verification_error">Library version verification failed. Please update the application.</string>
+    <string name="init_success">Successfully initialized and ready to use</string>
+    <string name="accelerators_available">Hardware accelerators detected: %1$s</string>
+    <string name="device_compatibility">Device compatibility check</string>
+    <string name="checking_compatibility">Checking device compatibility...</string>
+    <string name="compatibility_success">Your device is compatible</string>
+    <string name="compatibility_warning">Limited compatibility detected</string>
+    <string name="performance_mode">Performance mode: %1$s</string>
+</resources>
