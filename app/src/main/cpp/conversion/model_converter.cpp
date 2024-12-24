@@ -2,6 +2,9 @@
 #include <android/log.h>
 #include <unordered_map>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
 
 namespace mobileai {
 namespace conversion {
@@ -87,8 +90,24 @@ public:
 
 private:
     std::vector<uint8_t> LoadModel(const std::string& path, ModelFormat format) {
-        // TODO: Implement model loading for different formats
-        return std::vector<uint8_t>();
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+            __android_log_print(ANDROID_LOG_ERROR, "ModelConverter", 
+                              "Failed to open model file: %s", path.c_str());
+            return std::vector<uint8_t>();
+        }
+
+        std::streamsize size = file.tellg();
+        file.seekg(0, std::ios::beg);
+
+        std::vector<uint8_t> buffer(size);
+        if (!file.read(reinterpret_cast<char*>(buffer.data()), size)) {
+            __android_log_print(ANDROID_LOG_ERROR, "ModelConverter",
+                              "Failed to read model file");
+            return std::vector<uint8_t>();
+        }
+
+        return buffer;
     }
 
     bool SaveModel(const std::string& path, const std::vector<uint8_t>& data) {
@@ -106,13 +125,72 @@ private:
         ModelFormat source_format,
         ModelFormat target_format,
         const ConversionConfig& config) {
-        // TODO: Implement format conversion logic
-        return std::vector<uint8_t>();
+        
+        // Basic format conversion logic
+        std::vector<uint8_t> converted_data;
+
+        // Handle format-specific conversions
+        switch (source_format) {
+            case ModelFormat::ONNX:
+                if (target_format == ModelFormat::TFLITE) {
+                    converted_data = ConvertONNXToTFLite(input_data, config);
+                } else if (target_format == ModelFormat::PYTORCH) {
+                    converted_data = ConvertONNXToPyTorch(input_data, config);
+                }
+                break;
+
+            case ModelFormat::TFLITE:
+                if (target_format == ModelFormat::ONNX) {
+                    converted_data = ConvertTFLiteToONNX(input_data, config);
+                } else if (target_format == ModelFormat::PYTORCH) {
+                    converted_data = ConvertTFLiteToPyTorch(input_data, config);
+                }
+                break;
+
+            case ModelFormat::PYTORCH:
+                if (target_format == ModelFormat::ONNX) {
+                    converted_data = ConvertPyTorchToONNX(input_data, config);
+                } else if (target_format == ModelFormat::TFLITE) {
+                    converted_data = ConvertPyTorchToTFLite(input_data, config);
+                }
+                break;
+
+            case ModelFormat::CUSTOM:
+                if (auto it = custom_formats_.find("custom"); it != custom_formats_.end()) {
+                    converted_data = it->second.conversion_func(input_data, target_format, config);
+                }
+                break;
+
+            default:
+                __android_log_print(ANDROID_LOG_ERROR, "ModelConverter",
+                                  "Unsupported source format");
+                break;
+        }
+
+        return converted_data;
     }
 
     bool ValidateModel(const std::vector<uint8_t>& model_data, ModelFormat format) {
-        // TODO: Implement model validation
-        return true;
+        if (model_data.empty()) {
+            return false;
+        }
+
+        // Basic format validation
+        switch (format) {
+            case ModelFormat::ONNX:
+                return ValidateONNXFormat(model_data);
+            case ModelFormat::TFLITE:
+                return ValidateTFLiteFormat(model_data);
+            case ModelFormat::PYTORCH:
+                return ValidatePyTorchFormat(model_data);
+            case ModelFormat::CUSTOM:
+                if (auto it = custom_formats_.find("custom"); it != custom_formats_.end()) {
+                    return it->second.validation_func(model_data);
+                }
+                return false;
+            default:
+                return false;
+        }
     }
 
     std::string GetFormatExtension(ModelFormat format) {
