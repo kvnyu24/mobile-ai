@@ -43,6 +43,7 @@ Thumbs.db
 # Keystore files
 *.jks
 *.keystore
+!release.keystore
 
 # Log Files
 *.log
