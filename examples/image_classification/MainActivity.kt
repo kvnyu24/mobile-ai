@@ -8,12 +8,22 @@ import com.mobileai.core.HardwareManager
 import com.mobileai.inference.ModelManager
 import com.mobileai.inference.ModelFormat
 import com.mobileai.security.SecurityManager
+import android.graphics.Matrix
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class ImageClassificationActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "ImageClassification"
         private const val MODEL_PATH = "models/mobilenet_v2_quantized.tflite"
         private const val NUM_THREADS = 4
+        private const val INPUT_SIZE = 224 // Standard MobileNet input size
+        private const val PIXEL_SIZE = 3 // RGB channels
+        private const val BATCH_SIZE = 1
+        private val LABELS = arrayOf(
+            "airplane", "automobile", "bird", "cat", "deer",
+            "dog", "frog", "horse", "ship", "truck"
+        ) // Example labels, replace with actual model labels
     }
 
     private lateinit var hardwareManager: HardwareManager
@@ -95,19 +105,49 @@ class ImageClassificationActivity : AppCompatActivity() {
     }
 
     private fun preprocessImage(bitmap: Bitmap): FloatArray {
-        // TODO: Implement image preprocessing
-        // - Resize to model input size
-        // - Normalize pixel values
-        // - Convert to float array
-        return FloatArray(0)
+        // Scale the bitmap to required input size
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, INPUT_SIZE, INPUT_SIZE, true)
+        
+        // Allocate ByteBuffer for input data
+        val inputBuffer = ByteBuffer.allocateDirect(BATCH_SIZE * INPUT_SIZE * INPUT_SIZE * PIXEL_SIZE * 4)
+        inputBuffer.order(ByteOrder.nativeOrder())
+        
+        // Convert bitmap to float values normalized between -1 and 1
+        val pixels = IntArray(INPUT_SIZE * INPUT_SIZE)
+        scaledBitmap.getPixels(pixels, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE)
+        
+        val floatArray = FloatArray(BATCH_SIZE * INPUT_SIZE * INPUT_SIZE * PIXEL_SIZE)
+        var pixelIndex = 0
+        for (i in 0 until INPUT_SIZE) {
+            for (j in 0 until INPUT_SIZE) {
+                val pixel = pixels[i * INPUT_SIZE + j]
+                // Extract RGB values and normalize to [-1, 1]
+                floatArray[pixelIndex++] = ((pixel shr 16 and 0xFF) - 128) / 128.0f
+                floatArray[pixelIndex++] = ((pixel shr 8 and 0xFF) - 128) / 128.0f
+                floatArray[pixelIndex++] = ((pixel and 0xFF) - 128) / 128.0f
+            }
+        }
+        
+        return floatArray
     }
 
     private fun postprocessResults(output: FloatArray): List<Pair<String, Float>> {
-        // TODO: Implement result post-processing
-        // - Convert output to probabilities
-        // - Map to class labels
-        // - Sort by confidence
-        return emptyList()
+        // Convert output array to list of label-confidence pairs
+        val results = mutableListOf<Pair<String, Float>>()
+        
+        // Apply softmax to get probabilities
+        val sum = output.map { Math.exp(it.toDouble()) }.sum()
+        val probabilities = output.map { (Math.exp(it.toDouble()) / sum).toFloat() }
+        
+        // Create pairs of labels and probabilities
+        for (i in LABELS.indices) {
+            if (i < probabilities.size) {
+                results.add(Pair(LABELS[i], probabilities[i]))
+            }
+        }
+        
+        // Sort by confidence in descending order
+        return results.sortedByDescending { it.second }
     }
 
     override fun onDestroy() {
@@ -115,4 +155,4 @@ class ImageClassificationActivity : AppCompatActivity() {
         modelManager.release()
         hardwareManager.release()
     }
-} 
+}
