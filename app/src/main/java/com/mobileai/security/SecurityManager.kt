@@ -12,6 +12,8 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import android.content.Context
+import android.content.SharedPreferences
 
 class SecurityManager {
     companion object {
@@ -22,10 +24,14 @@ class SecurityManager {
         private const val AUTH_TAG_LENGTH = 128
         private const val KEY_SIZE = 256
         private const val IV_SIZE = 12 // GCM recommended IV size
+        private const val PREFS_NAME = "SecureModelMetadata"
+        private const val ENCRYPTED_METADATA_KEY = "encrypted_metadata"
+        private const val METADATA_IV_KEY = "metadata_iv"
     }
 
     private var keyStore: KeyStore? = null
     private var secretKey: SecretKey? = null
+    private lateinit var sharedPreferences: SharedPreferences
 
     init {
         initializeKeyStore()
@@ -149,7 +155,12 @@ class SecurityManager {
             }
             val encryptedMetadata = encryptModel(metadataString.toByteArray(Charsets.UTF_8))
                 ?: return false
-            // TODO: Store encrypted metadata and IV in secure storage
+                
+            sharedPreferences.edit().apply {
+                putString(ENCRYPTED_METADATA_KEY, android.util.Base64.encodeToString(encryptedMetadata.first, android.util.Base64.NO_WRAP))
+                putString(METADATA_IV_KEY, android.util.Base64.encodeToString(encryptedMetadata.second, android.util.Base64.NO_WRAP))
+                apply()
+            }
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to store model metadata", e)
@@ -159,11 +170,19 @@ class SecurityManager {
 
     fun retrieveModelMetadata(): Map<String, String>? {
         return try {
-            // TODO: Retrieve encrypted metadata and IV from secure storage
-            // val (encryptedMetadata, iv) = retrieveEncryptedMetadata()
-            // val decryptedData = decryptModel(encryptedMetadata, iv) ?: return null
-            // parseMetadata(String(decryptedData, Charsets.UTF_8))
-            null
+            val encryptedMetadataStr = sharedPreferences.getString(ENCRYPTED_METADATA_KEY, null)
+            val ivStr = sharedPreferences.getString(METADATA_IV_KEY, null)
+            
+            if (encryptedMetadataStr == null || ivStr == null) {
+                Log.w(TAG, "No stored metadata found")
+                return null
+            }
+            
+            val encryptedMetadata = android.util.Base64.decode(encryptedMetadataStr, android.util.Base64.NO_WRAP)
+            val iv = android.util.Base64.decode(ivStr, android.util.Base64.NO_WRAP)
+            
+            val decryptedData = decryptModel(encryptedMetadata, iv) ?: return null
+            parseMetadata(String(decryptedData, Charsets.UTF_8))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to retrieve model metadata", e)
             null
