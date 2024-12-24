@@ -45,6 +45,7 @@ Thumbs.db
 *.keystore
 !release.keystore
 release.keystore
+*.keystore
 
 # Log Files
 *.log
