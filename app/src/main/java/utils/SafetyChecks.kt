@@ -5,6 +5,7 @@ import android.util.Log
 import android.os.Build
 import android.app.ActivityManager
 import android.os.StatFs
+import com.mobileai.BuildConfig
 import com.mobileai.exceptions.InitializationException
 import com.mobileai.utils.Constants
 

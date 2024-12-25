@@ -3,10 +3,13 @@
     android:minSdkVersion="26">
     <background 
         android:drawable="@color/ic_launcher_background"
-        android:alpha="255"/>
+        android:alpha="255"
+        android:gravity="center"/>
     <foreground 
         android:drawable="@drawable/ic_launcher_foreground"
-        android:alpha="255"/>
+        android:alpha="255"
+        android:gravity="center"/>
     <monochrome
-        android:drawable="@drawable/ic_launcher_foreground"/>
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:gravity="center"/>
 </adaptive-icon>

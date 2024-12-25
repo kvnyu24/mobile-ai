@@ -7,6 +7,9 @@
 #include <thread>
 #include <sstream>
 #include <limits>
+#include <vector>
+
+using namespace std;
 
 namespace mobileai {
 namespace inference {

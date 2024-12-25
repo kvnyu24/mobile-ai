@@ -21,6 +21,11 @@ public:
         const BenchmarkConfig& config) {
         std::vector<BenchmarkResult> results;
 
+        // Validate model path
+        if (!std::filesystem::exists(model_path)) {
+            return results;
+        }
+
         // Perform warm-up runs if enabled
         if (config.warm_up) {
             for (int i = 0; i < config.warm_up_runs; i++) {
@@ -32,13 +37,29 @@ public:
         for (int batch_size : config.batch_sizes) {
             BenchmarkResult result;
             result.batch_size = batch_size;
+            result.timestamp = std::chrono::system_clock::now();
             
-            // Measure inference time
+            // Measure inference time with timeout handling
             double total_time = 0;
+            int successful_runs = 0;
             for (int i = 0; i < config.num_runs; i++) {
-                total_time += MeasureInferenceTime(model_path, batch_size);
+                auto run_start = std::chrono::steady_clock::now();
+                double time = MeasureInferenceTime(model_path, batch_size);
+                
+                if (config.timeout_ms) {
+                    auto elapsed = std::chrono::steady_clock::now() - run_start;
+                    if (elapsed > config.timeout_ms.value()) {
+                        continue;
+                    }
+                }
+                
+                total_time += time;
+                successful_runs++;
             }
-            result.inference_time_ms = total_time / config.num_runs;
+            
+            if (successful_runs > 0) {
+                result.inference_time_ms = total_time / successful_runs;
+            }
 
             // Measure memory if enabled
             if (config.measure_memory) {
@@ -48,6 +69,28 @@ public:
             // Measure power if enabled
             if (config.measure_power) {
                 result.power_usage_mw = MeasurePowerConsumption(model_path);
+            }
+
+            // Measure thermal throttling if enabled
+            if (config.measure_thermal) {
+                result.thermal_throttling_percent = GetThermalThrottling();
+            }
+
+            // Measure CPU/GPU utilization if enabled
+            if (config.measure_utilization) {
+                result.cpu_utilization_percent = GetCPUUtilization();
+                result.gpu_utilization_percent = GetGPUUtilization();
+            }
+
+            // Determine model format from extension
+            std::string ext = std::filesystem::path(model_path).extension();
+            if (ext == ".tflite") result.model_format = "TFLite";
+            else if (ext == ".pt") result.model_format = "PyTorch";
+            else if (ext == ".onnx") result.model_format = "ONNX";
+
+            // Notify progress if callback provided
+            if (config.progress_callback) {
+                config.progress_callback(result);
             }
 
             results.push_back(result);
@@ -128,6 +171,16 @@ public:
             benchmark["model_format"] = result.model_format;
             benchmark["batch_size"] = result.batch_size;
             
+            if (result.thermal_throttling_percent) {
+                benchmark["thermal_throttling_percent"] = *result.thermal_throttling_percent;
+            }
+            if (result.cpu_utilization_percent) {
+                benchmark["cpu_utilization_percent"] = *result.cpu_utilization_percent;
+            }
+            if (result.gpu_utilization_percent) {
+                benchmark["gpu_utilization_percent"] = *result.gpu_utilization_percent;
+            }
+            
             Json::Value optimizations(Json::arrayValue);
             for (const auto& opt : result.enabled_optimizations) {
                 optimizations.append(opt);
@@ -138,7 +191,12 @@ public:
         }
         root["benchmarks"] = benchmarks;
 
+        // Create output directory if it doesn't exist
+        std::filesystem::path output_dir = std::filesystem::path(output_path).parent_path();
+        std::filesystem::create_directories(output_dir);
+
         Json::StreamWriterBuilder writer;
+        writer["indentation"] = "    ";
         std::ofstream file(output_path);
         return file.is_open() ? (file << Json::writeString(writer, root), true) : false;
     }
@@ -159,6 +217,10 @@ public:
             info["total_ram_mb"] = (si.totalram * si.mem_unit) / (1024 * 1024);
             info["free_ram_mb"] = (si.freeram * si.mem_unit) / (1024 * 1024);
             info["procs"] = si.procs;
+            info["uptime_seconds"] = si.uptime;
+            info["load_1min"] = si.loads[0] / 65536.0;
+            info["load_5min"] = si.loads[1] / 65536.0;
+            info["load_15min"] = si.loads[2] / 65536.0;
         }
         
         Json::StreamWriterBuilder writer;
@@ -191,7 +253,8 @@ public:
         
         std::vector<std::string> stats = {
             "status", "capacity", "voltage_now", "current_now", 
-            "temp", "technology", "health"
+            "temp", "technology", "health", "charge_counter",
+            "cycle_count", "charge_full", "charge_full_design"
         };
         
         for (const auto& stat : stats) {
@@ -204,6 +267,40 @@ public:
         
         Json::StreamWriterBuilder writer;
         return Json::writeString(writer, power_info);
+    }
+
+private:
+    double GetThermalThrottling() const {
+        // Read thermal throttling info from sysfs
+        std::string throttling_file = "/sys/class/thermal/thermal_zone0/temp";
+        std::ifstream throttle(throttling_file);
+        double temp = 0.0;
+        if (throttle >> temp) {
+            temp /= 1000.0; // Convert to Celsius
+            // Calculate throttling percentage based on temperature thresholds
+            if (temp > 80.0) return 100.0;
+            else if (temp > 60.0) return (temp - 60.0) * 5.0;
+            return 0.0;
+        }
+        return 0.0;
+    }
+
+    double GetCPUUtilization() const {
+        std::ifstream stat("/proc/stat");
+        std::string line;
+        if (std::getline(stat, line)) {
+            std::istringstream iss(line);
+            std::string cpu;
+            long user, nice, system, idle;
+            iss >> cpu >> user >> nice >> system >> idle;
+            return 100.0 * (1.0 - (idle / static_cast<double>(user + nice + system + idle)));
+        }
+        return 0.0;
+    }
+
+    double GetGPUUtilization() const {
+        // Note: This is a placeholder. Actual implementation would depend on the GPU vendor
+        return 0.0;
     }
 };
 

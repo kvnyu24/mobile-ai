@@ -31,8 +31,8 @@ public:
         if (status != NEUROPILOT_NO_ERROR) {
             error_handler_->ReportError(
                 "Failed to initialize NeuroPilot",
-                core::ErrorSeverity::Critical,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::CRITICAL,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return HardwareAccelerator::ErrorCode::INITIALIZATION_FAILED;
@@ -50,8 +50,8 @@ public:
         if (status != NEUROPILOT_NO_ERROR) {
             error_handler_->ReportError(
                 "Failed to get hardware info",
-                core::ErrorSeverity::Warning,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::WARNING,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return false;
@@ -76,8 +76,8 @@ public:
         if (!neuropilot_handle_) {
             error_handler_->ReportError(
                 "NeuroPilot handle is null",
-                core::ErrorSeverity::Error,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::ERROR,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
@@ -102,8 +102,8 @@ public:
         if (status != NEUROPILOT_NO_ERROR) {
             error_handler_->ReportError(
                 "Inference execution failed",
-                core::ErrorSeverity::Error,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::ERROR,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
@@ -125,8 +125,8 @@ public:
         if (!neuropilot_handle_) {
             error_handler_->ReportError(
                 "Cannot set power profile - NeuroPilot not initialized",
-                core::ErrorSeverity::Warning,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::WARNING,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
@@ -149,8 +149,8 @@ public:
             default:
                 error_handler_->ReportError(
                     "Invalid power profile specified",
-                    core::ErrorSeverity::Warning,
-                    core::ErrorCategory::Hardware,
+                    core::ErrorSeverity::WARNING,
+                    core::ErrorCategory::HARDWARE,
                     "MTKAccelerator"
                 );
                 return HardwareAccelerator::ErrorCode::INVALID_INPUT;
@@ -160,8 +160,8 @@ public:
         if (status != NEUROPILOT_NO_ERROR) {
             error_handler_->ReportError(
                 "Failed to set power config",
-                core::ErrorSeverity::Warning,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::WARNING,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
@@ -182,8 +182,8 @@ public:
         if (count <= 0) {
             error_handler_->ReportError(
                 "Invalid thread count specified",
-                core::ErrorSeverity::Warning,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::WARNING,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return false;
@@ -197,8 +197,8 @@ public:
         if (!neuropilot_handle_) {
             error_handler_->ReportError(
                 "Cannot enable profiling - NeuroPilot not initialized",
-                core::ErrorSeverity::Warning,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::WARNING,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return false;
@@ -209,8 +209,8 @@ public:
         if (status != NEUROPILOT_NO_ERROR) {
             error_handler_->ReportError(
                 "Failed to set profiling mode",
-                core::ErrorSeverity::Warning,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::WARNING,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return false;
@@ -237,8 +237,8 @@ private:
         if (status != NEUROPILOT_NO_ERROR) {
             error_handler_->ReportError(
                 "Failed to get power stats",
-                core::ErrorSeverity::Warning,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::WARNING,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return 0.0f;
@@ -256,8 +256,8 @@ private:
         if (status != NEUROPILOT_NO_ERROR) {
             error_handler_->ReportError(
                 "Failed to get performance stats",
-                core::ErrorSeverity::Warning,
-                core::ErrorCategory::Hardware,
+                core::ErrorSeverity::WARNING,
+                core::ErrorCategory::HARDWARE,
                 "MTKAccelerator"
             );
             return 0.0f;

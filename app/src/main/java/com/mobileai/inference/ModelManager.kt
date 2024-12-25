@@ -163,12 +163,63 @@ class ModelManager(private val hardwareManager: HardwareManager) {
         }
     }
 
+    fun isCompatible(): Boolean {
+        return try {
+            initialize()
+        } catch (e: Exception) {
+            Log.e(TAG, "Compatibility check failed", e)
+            false
+        }
+    }
+
+    fun loadModels(modelPaths: List<String>): Boolean {
+        if (modelPaths.isEmpty()) {
+            Log.w(TAG, "No models provided to load")
+            return false
+        }
+
+        return try {
+            modelPaths.all { path ->
+                loadModel(path, inferModelFormat(path))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load models", e)
+            false
+        }
+    }
+
+    fun isActive(): Boolean {
+        return isInitialized && isModelLoaded
+    }
+
+    fun stopAllInferences() {
+        synchronized(this) {
+            if (isActive()) {
+                try {
+                    nativeStopInferences()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error stopping inferences", e)
+                }
+            }
+        }
+    }
+
+    private fun inferModelFormat(path: String): ModelFormat {
+        return when {
+            path.endsWith(".tflite") -> ModelFormat.TFLITE
+            path.endsWith(".pt") -> ModelFormat.PYTORCH
+            path.endsWith(".onnx") -> ModelFormat.ONNX
+            else -> throw IllegalArgumentException("Unsupported model format for file: $path")
+        }
+    }
+
     private external fun nativeLoadModel(modelPath: String, format: ModelFormat): Boolean
     private external fun nativeRunInference(input: FloatArray): FloatArray
     private external fun nativeGetModelInfo(): String
     private external fun nativeSetNumThreads(numThreads: Int)
     private external fun nativeEnableHardwareAcceleration(enable: Boolean)
     private external fun nativeRelease()
+    private external fun nativeStopInferences()
 
     companion object {
         private const val TAG = "ModelManager"

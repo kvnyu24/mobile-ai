@@ -4,6 +4,7 @@
         "*.vuerd": "json",
         "chrono": "cpp",
         "fstream": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "functional": "cpp"
     }
 }
