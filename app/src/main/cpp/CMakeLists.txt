@@ -17,6 +17,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(JSONCPP REQUIRED jsoncpp)
 
+# Add nlohmann-json
+include(FetchContent)
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
+# TensorFlow Lite configuration
+set(TFLITE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tensorflow")
+
 # Add source files
 file(GLOB_RECURSE SOURCES
     "core/*.cpp" "core/*.h"
@@ -39,6 +47,13 @@ target_include_directories(${CMAKE_PROJECT_NAME}
     ${ANDROID_NDK}/sources/android/log/include
     ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include
     ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/c++/v1
+    ${TFLITE_ROOT}/include
+)
+
+# Link directories
+target_link_directories(${CMAKE_PROJECT_NAME}
+    PRIVATE
+    ${TFLITE_ROOT}/lib
 )
 
 # Link libraries
@@ -47,4 +62,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     ${JSONCPP_LIBRARIES}
     android
     log
+    tensorflowlite
+    nlohmann_json::nlohmann_json
 )

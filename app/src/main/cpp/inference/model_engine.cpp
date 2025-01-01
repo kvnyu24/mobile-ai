@@ -150,6 +150,7 @@ public:
     hardware::HardwareAccelerator::ErrorCode GetLastError() const {
         return last_error_;
     }
+
     bool OptimizeModel(const std::string& output_path) {
         if (!accelerator_) {
             last_error_ = hardware::HardwareAccelerator::ErrorCode::INITIALIZATION_FAILED;
@@ -162,7 +163,7 @@ public:
             
             // Apply hardware-specific optimizations
             if (format_ == ModelFormat::TFLITE) {
-                tflite::OpResolver resolver;
+                tflite::ops::builtin::BuiltinOpResolver resolver;
                 for (const auto& op : supported_ops) {
                     resolver.AddBuiltin(op);
                 }
@@ -291,7 +292,7 @@ public:
     }
 
     bool WarmUp(size_t num_runs) {
-        std::vector<float> dummy_input(GetInputShapes()[0].first);
+        std::vector<float> dummy_input(GetInputSize());
         std::vector<float> dummy_output;
         
         bool success = true;
@@ -305,6 +306,27 @@ public:
     }
 
 private:
+    size_t GetInputSize() {
+        switch (format_) {
+            case ModelFormat::TFLITE: {
+                auto* input_tensor = interpreter_->input_tensor(0);
+                return input_tensor->bytes / sizeof(float);
+            }
+            case ModelFormat::PYTORCH: {
+                auto input_shape = module_.get_method("forward").graph()->inputs()[0]->type()->sizes();
+                return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<int64_t>());
+            }
+            case ModelFormat::ONNX: {
+                auto input_shape = session_->GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
+                return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<int64_t>());
+            }
+            case ModelFormat::CUSTOM:
+                return 1; // Default size for custom models
+            default:
+                return 0;
+        }
+    }
+
     bool LoadTFLiteModel() {
         try {
             if (!std::filesystem::exists(model_path_)) {
