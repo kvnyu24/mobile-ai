@@ -53,7 +53,7 @@ public:
     bool PruneModel(const std::string& input_path,
                    const std::string& output_path,
                    const PruningConfig& config,
-                   std::function<float(float)> pruning_criterion) {
+                   const std::function<float(float)>& pruning_criterion) {
         if (!ValidateInputFile(input_path)) {
             LOGE("Failed to validate input file: %s", input_path.c_str());
             return false;
@@ -233,7 +233,7 @@ private:
     bool StructuredPruning(const std::string& input_path,
                           const std::string& output_path,
                           const PruningConfig& config,
-                          std::function<float(float)> pruning_criterion) {
+                          const std::function<float(float)>& pruning_criterion) {
         std::ifstream input(input_path, std::ios::binary);
         std::ofstream output(output_path, std::ios::binary);
         
@@ -261,7 +261,7 @@ private:
     bool UnstructuredPruning(const std::string& input_path,
                            const std::string& output_path,
                            const PruningConfig& config,
-                           std::function<float(float)> pruning_criterion) {
+                           const std::function<float(float)>& pruning_criterion) {
         std::ifstream input(input_path, std::ios::binary);
         std::ofstream output(output_path, std::ios::binary);
         
@@ -303,7 +303,7 @@ bool ModelOptimizer::QuantizeModel(const std::string& input_path,
 bool ModelOptimizer::PruneModel(const std::string& input_path,
                               const std::string& output_path,
                               const PruningConfig& config,
-                              std::function<float(float)> pruning_criterion) {
+                              const std::function<float(float)>& pruning_criterion) {
     return pImpl->PruneModel(input_path, output_path, config, pruning_criterion);
 }
 
@@ -331,7 +331,7 @@ bool ModelOptimizer::OptimizeModel(const std::string& input_path,
     return result;
 }
 
-float ModelOptimizer::CalculateModelSize(const std::string& model_path) {
+float ModelOptimizer::CalculateModelSize(const std::string& model_path) const {
     std::ifstream file(model_path, std::ios::binary | std::ios::ate);
     if (!file.good()) {
         LOGE("Failed to open model file for size calculation");
@@ -342,8 +342,9 @@ float ModelOptimizer::CalculateModelSize(const std::string& model_path) {
     return size_mb;
 }
 
-float ModelOptimizer::EstimateInferenceTime(const std::string& model_path) {
-    if (!ValidateInputFile(model_path)) {
+float ModelOptimizer::EstimateInferenceTime(const std::string& model_path) const {
+    std::ifstream file(model_path, std::ios::binary);
+    if (!file.good()) {
         LOGE("Invalid model file for inference time estimation");
         return 0.0f;
     }
@@ -364,8 +365,9 @@ float ModelOptimizer::EstimateInferenceTime(const std::string& model_path) {
     return avg_time;
 }
 
-std::string ModelOptimizer::AnalyzeModelStructure(const std::string& model_path) {
-    if (!ValidateInputFile(model_path)) {
+std::string ModelOptimizer::AnalyzeModelStructure(const std::string& model_path) const {
+    std::ifstream file(model_path, std::ios::binary);
+    if (!file.good()) {
         LOGE("Failed to analyze model structure: invalid file");
         return "Failed to open model file";
     }
@@ -377,11 +379,6 @@ std::string ModelOptimizer::AnalyzeModelStructure(const std::string& model_path)
     
     LOGI("Model analysis completed");
     return analysis.str();
-}
-
-bool ModelOptimizer::ValidateInputFile(const std::string& path) {
-    std::ifstream file(path, std::ios::binary);
-    return file.good();
 }
 
 } // namespace inference

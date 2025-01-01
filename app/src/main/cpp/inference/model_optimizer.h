@@ -36,7 +36,7 @@ public:
 
     // Quantization
     bool QuantizeModel(const std::string& input_path,
-                      const std::string& output_path,
+                      const std::string& output_path, 
                       const QuantizationConfig& config,
                       const std::vector<std::vector<float>>& calibration_data);
 
@@ -44,21 +44,24 @@ public:
     bool PruneModel(const std::string& input_path,
                    const std::string& output_path,
                    const PruningConfig& config,
-                   std::function<float(float)> pruning_criterion);
+                   const std::function<float(float)>& pruning_criterion);
 
     // Combined optimization
     bool OptimizeModel(const std::string& input_path,
                       const std::string& output_path,
-                      const QuantizationConfig& quant_config,
+                      const QuantizationConfig& quant_config, 
                       const PruningConfig& prune_config,
                       const std::vector<std::vector<float>>& calibration_data);
 
     // Model analysis
-    float CalculateModelSize(const std::string& model_path);
-    float EstimateInferenceTime(const std::string& model_path);
-    std::string AnalyzeModelStructure(const std::string& model_path);
+    float CalculateModelSize(const std::string& model_path) const;
+    float EstimateInferenceTime(const std::string& model_path) const;
+    std::string AnalyzeModelStructure(const std::string& model_path) const;
 
 private:
     class Impl;
     std::unique_ptr<Impl> pImpl;
-}; 
+};
+
+} // namespace inference
+} // namespace mobileai
