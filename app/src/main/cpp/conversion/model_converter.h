@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <unordered_map>
 
 namespace mobileai {
 namespace conversion {
@@ -56,7 +57,6 @@ public:
 
     // Validation
     bool ValidateModel(const std::string& model_path, ModelFormat format);
-    std::string GetModelInfo(const std::string& model_path, ModelFormat format);
 
     // Utilities
     std::vector<ModelFormat> GetSupportedFormats() const;
@@ -67,5 +67,6 @@ private:
     class Impl;
     std::unique_ptr<Impl> pImpl;
 };
+
 } // namespace conversion
-} // namespace mobileai 
+} // namespace mobileai
