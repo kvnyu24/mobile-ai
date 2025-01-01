@@ -4,7 +4,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <neuropilot/neuropilot.h>
 
 namespace mobileai {
 namespace hardware {

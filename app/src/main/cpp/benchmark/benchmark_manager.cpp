@@ -10,6 +10,7 @@
 #include <sys/utsname.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <dirent.h>
 
 namespace mobileai {
 namespace benchmark {
@@ -18,19 +19,21 @@ class BenchmarkManager::Impl {
 public:
     ::std::vector<BenchmarkResult> RunBenchmark(
         const ::std::string& model_path,
-        const BenchmarkConfig& config) {
+        const BenchmarkConfig& config,
+        ::std::string* error_msg = nullptr) {
         ::std::vector<BenchmarkResult> results;
 
         // Validate model path
-        struct stat buffer;
+        struct stat buffer{};
         if (stat(model_path.c_str(), &buffer) != 0) {
+            if (error_msg) *error_msg = "Invalid model path";
             return results;
         }
 
         // Perform warm-up runs if enabled
         if (config.warm_up) {
             for (int i = 0; i < config.warm_up_runs; i++) {
-                this->MeasureInferenceTime(model_path, 1);
+                MeasureInferenceTime(model_path, 1, error_msg);
             }
         }
 
@@ -45,7 +48,9 @@ public:
             int successful_runs = 0;
             for (int i = 0; i < config.num_runs; i++) {
                 auto run_start = ::std::chrono::steady_clock::now();
-                double time = this->MeasureInferenceTime(model_path, batch_size);
+                auto time = this->MeasureInferenceTime(model_path, batch_size, error_msg);
+                
+                if (!time) continue;
                 
                 if (config.timeout_ms) {
                     auto elapsed = ::std::chrono::steady_clock::now() - run_start;
@@ -54,7 +59,7 @@ public:
                     }
                 }
                 
-                total_time += time;
+                total_time += *time;
                 successful_runs++;
             }
             
@@ -64,12 +69,14 @@ public:
 
             // Measure memory if enabled
             if (config.measure_memory) {
-                result.memory_usage_mb = this->MeasureMemoryUsage(model_path);
+                auto memory = this->MeasureMemoryUsage(model_path, error_msg);
+                if (memory) result.memory_usage_mb = *memory;
             }
 
             // Measure power if enabled
             if (config.measure_power) {
-                result.power_usage_mw = this->MeasurePowerConsumption(model_path);
+                auto power = this->MeasurePowerConsumption(model_path, error_msg);
+                if (power) result.power_usage_mw = *power;
             }
 
             // Measure thermal throttling if enabled
@@ -102,64 +109,98 @@ public:
         return results;
     }
 
-    double MeasureInferenceTime(const ::std::string& model_path, int batch_size) {
+    ::std::optional<double> MeasureInferenceTime(
+        const ::std::string& model_path, 
+        int batch_size,
+        ::std::string* error_msg = nullptr) {
+        
+        ::std::vector<uint8_t> buffer;
         auto start = ::std::chrono::high_resolution_clock::now();
         
-        // Load model and perform inference
-        // Note: This is a placeholder implementation - actual inference would use ML framework
-        ::std::ifstream model_file(model_path, ::std::ios::binary);
-        if (model_file.is_open()) {
-            model_file.seekg(0, ::std::ios::end);
-            size_t size = model_file.tellg();
-            ::std::vector<char> buffer(size);
+        try {
+            ::std::basic_ifstream<char> model_file(model_path, ::std::ios::binary | ::std::ios::ate);
+            if (!model_file) {
+                if (error_msg) *error_msg = "Failed to open model file";
+                return ::std::nullopt;
+            }
+            
+            auto size = model_file.tellg();
             model_file.seekg(0);
-            model_file.read(buffer.data(), size);
+            
+            buffer.resize(static_cast<size_t>(size));
+            model_file.read(reinterpret_cast<char*>(buffer.data()), size);
             
             // Simulate inference time based on model size and batch size
-            ::std::this_thread::sleep_for(::std::chrono::milliseconds(size / (1024 * 1024) * batch_size));
+            auto sleep_duration = ::std::chrono::milliseconds(
+                static_cast<long>(size / (1024 * 1024) * batch_size));
+            ::std::this_thread::sleep_until(::std::chrono::system_clock::now() + sleep_duration);
+            
+        } catch (const ::std::exception& e) {
+            if (error_msg) *error_msg = e.what();
+            return ::std::nullopt;
         }
         
         auto end = ::std::chrono::high_resolution_clock::now();
         return ::std::chrono::duration<double, ::std::milli>(end - start).count();
     }
 
-    double MeasureMemoryUsage(const ::std::string& model_path) {
+    ::std::optional<double> MeasureMemoryUsage(
+        const ::std::string& model_path,
+        ::std::string* error_msg = nullptr) {
         // Get process memory info
         ::std::string status_file = "/proc/self/status";
-        ::std::ifstream status(status_file);
-        ::std::string line;
         double vm_size = 0.0;
         
-        while (::std::getline(status, line)) {
-            if (line.find("VmRSS:") != ::std::string::npos) {
-                ::std::istringstream iss(line);
-                ::std::string label;
-                double kb;
-                iss >> label >> kb;
-                vm_size = kb / 1024.0; // Convert KB to MB
-                break;
+        try {
+            ::std::basic_ifstream<char> status(status_file);
+            if (!status) {
+                if (error_msg) *error_msg = "Failed to read memory status";
+                return ::std::nullopt;
             }
+
+            ::std::string line;
+            while (status.good()) {
+                ::std::getline(status, line);
+                if (line.find("VmRSS:") != ::std::string::npos) {
+                    ::std::string label;
+                    double kb;
+                    ::std::basic_stringstream<char> iss(line);
+                    iss >> label >> kb;
+                    vm_size = kb / 1024.0; // Convert KB to MB
+                    break;
+                }
+            }
+        } catch (const ::std::exception& e) {
+            if (error_msg) *error_msg = e.what();
+            return ::std::nullopt;
         }
         
         return vm_size;
     }
 
-    double MeasurePowerConsumption(const ::std::string& model_path) {
+    ::std::optional<double> MeasurePowerConsumption(
+        const ::std::string& model_path,
+        ::std::string* error_msg = nullptr) {
         // Read battery stats from sysfs
         ::std::string power_file = "/sys/class/power_supply/battery/power_now";
         ::std::ifstream power(power_file);
-        double power_usage = 0.0;
-        
-        if (power.is_open()) {
-            power >> power_usage;
-            power_usage /= 1000.0; // Convert to milliwatts
+        if (!power.is_open()) {
+            if (error_msg) *error_msg = "Failed to read power consumption";
+            return ::std::nullopt;
         }
+
+        double power_usage = 0.0;
+        power >> power_usage;
+        power_usage /= 1000.0; // Convert to milliwatts
         
         return power_usage;
     }
 
-    bool ExportResults(const ::std::string& output_path,
-                      const ::std::vector<BenchmarkResult>& results) {
+    bool ExportResults(
+        const ::std::string& output_path,
+        const ::std::vector<BenchmarkResult>& results,
+        const ::std::string& format = "json",
+        ::std::string* error_msg = nullptr) {
         Json::Value root;
         root["timestamp"] = Json::Value::Int64(::std::time(nullptr));
         root["system_info"] = GetSystemInfo();
@@ -204,7 +245,12 @@ public:
         Json::StreamWriterBuilder writer;
         writer["indentation"] = "    ";
         ::std::ofstream file(output_path);
-        return file.is_open() ? (file << Json::writeString(writer, root), true) : false;
+        if (!file.is_open()) {
+            if (error_msg) *error_msg = "Failed to open output file";
+            return false;
+        }
+        file << Json::writeString(writer, root);
+        return true;
     }
 
     ::std::string GetSystemInfo() const {
@@ -322,25 +368,36 @@ BenchmarkManager::~BenchmarkManager() = default;
 
 ::std::vector<BenchmarkResult> BenchmarkManager::RunBenchmark(
     const ::std::string& model_path,
-    const BenchmarkConfig& config) {
-    return pImpl->RunBenchmark(model_path, config);
+    const BenchmarkConfig& config,
+    ::std::string* error_msg) {
+    return pImpl->RunBenchmark(model_path, config, error_msg);
 }
 
-double BenchmarkManager::MeasureInferenceTime(const ::std::string& model_path, int batch_size) {
-    return pImpl->MeasureInferenceTime(model_path, batch_size);
+::std::optional<double> BenchmarkManager::MeasureInferenceTime(
+    const ::std::string& model_path, 
+    int batch_size,
+    ::std::string* error_msg) {
+    return pImpl->MeasureInferenceTime(model_path, batch_size, error_msg);
 }
 
-double BenchmarkManager::MeasureMemoryUsage(const ::std::string& model_path) {
-    return pImpl->MeasureMemoryUsage(model_path);
+::std::optional<double> BenchmarkManager::MeasureMemoryUsage(
+    const ::std::string& model_path,
+    ::std::string* error_msg) {
+    return pImpl->MeasureMemoryUsage(model_path, error_msg);
 }
 
-double BenchmarkManager::MeasurePowerConsumption(const ::std::string& model_path) {
-    return pImpl->MeasurePowerConsumption(model_path);
+::std::optional<double> BenchmarkManager::MeasurePowerConsumption(
+    const ::std::string& model_path,
+    ::std::string* error_msg) {
+    return pImpl->MeasurePowerConsumption(model_path, error_msg);
 }
 
-bool BenchmarkManager::ExportResults(const ::std::string& output_path,
-                                   const ::std::vector<BenchmarkResult>& results) {
-    return pImpl->ExportResults(output_path, results);
+bool BenchmarkManager::ExportResults(
+    const ::std::string& output_path,
+    const ::std::vector<BenchmarkResult>& results,
+    const ::std::string& format,
+    ::std::string* error_msg) {
+    return pImpl->ExportResults(output_path, results, format, error_msg);
 }
 
 ::std::string BenchmarkManager::GetSystemInfo() const {

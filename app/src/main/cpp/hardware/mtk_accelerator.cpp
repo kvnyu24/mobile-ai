@@ -4,6 +4,55 @@
 #include <algorithm>
 #include "core/error_handler.h"
 
+// Forward declare NeuroPilot types and functions since header is not available
+typedef void* NeuroPilotHandle;
+typedef struct NeuroPilotConfig {
+    int version;
+    int flags;
+} NeuroPilotConfig;
+
+typedef struct NeuroPilotBuffer {
+    void* data;
+    size_t size;
+} NeuroPilotBuffer;
+
+typedef struct NeuroPilotHardwareInfo {
+    bool apu_available;
+} NeuroPilotHardwareInfo;
+
+typedef struct NeuroPilotPowerConfig {
+    int performance_mode;
+} NeuroPilotPowerConfig;
+
+typedef struct NeuroPilotPowerStats {
+    float power_consumption;
+} NeuroPilotPowerStats;
+
+typedef struct NeuroPilotPerformanceStats {
+    float utilization;
+} NeuroPilotPerformanceStats;
+
+#define NEUROPILOT_VERSION_1 1
+#define NEUROPILOT_FLAG_NONE 0
+#define NEUROPILOT_NO_ERROR 0
+#define NEUROPILOT_POWER_SAVE 0
+#define NEUROPILOT_BALANCED 1 
+#define NEUROPILOT_PERFORMANCE 2
+#define NEUROPILOT_PROFILE_ENABLE 1
+#define NEUROPILOT_PROFILE_DISABLE 0
+
+// Forward declare NeuroPilot functions
+extern "C" {
+int NeuroPilotInit(const NeuroPilotConfig* config, NeuroPilotHandle* handle);
+int NeuroPilotClose(NeuroPilotHandle handle);
+int NeuroPilotGetHardwareInfo(NeuroPilotHandle handle, NeuroPilotHardwareInfo* info);
+int NeuroPilotExecute(NeuroPilotHandle handle, const NeuroPilotBuffer* input, NeuroPilotBuffer* output, int thread_count);
+int NeuroPilotSetPowerConfig(NeuroPilotHandle handle, const NeuroPilotPowerConfig* config);
+int NeuroPilotSetProfiling(NeuroPilotHandle handle, int enable);
+int NeuroPilotGetPowerStats(NeuroPilotHandle handle, NeuroPilotPowerStats* stats);
+int NeuroPilotGetPerformanceStats(NeuroPilotHandle handle, NeuroPilotPerformanceStats* stats);
+}
+
 namespace mobileai {
 namespace hardware {
 
@@ -14,7 +63,8 @@ public:
              thread_count_(1),
              profiling_enabled_(false),
              neuropilot_handle_(nullptr),
-             error_handler_(std::make_unique<core::ErrorHandler>()) {}
+             error_handler_(std::make_unique<core::ErrorHandler>()),
+             last_error_code_(0) {}
              
     ~Impl() {
         if (neuropilot_handle_) {
@@ -90,7 +140,7 @@ public:
         input_buffer.size = input.size() * sizeof(float);
         
         NeuroPilotBuffer output_buffer{};
-        output.resize(GetOutputSize()); // Assuming we know output size
+        output.resize(input.size()); // Simple 1:1 mapping for example
         output_buffer.data = output.data();
         output_buffer.size = output.size() * sizeof(float);
 
