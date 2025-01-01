@@ -6,5 +6,6 @@
         "fstream": "cpp",
         "filesystem": "cpp",
         "functional": "cpp"
-    }
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/clang"
 }

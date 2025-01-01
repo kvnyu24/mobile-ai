@@ -3,6 +3,9 @@
 # Exit on error
 set -e
 
+# Store current directory
+OLDPWD="/Users/kevinyu/Projects/mobile-ai"
+
 # Check for Android NDK
 if [[ "$(uname)" == "Darwin" ]]; then
     # On macOS, prefer Homebrew installation
@@ -49,17 +52,17 @@ fi
 echo "Setting up JsonCpp..."
 mkdir -p "${THIRD_PARTY_DIR}/jsoncpp/lib/arm64-v8a"
 mkdir -p "${THIRD_PARTY_DIR}/jsoncpp/lib/armeabi-v7a"
-mkdir -p "${THIRD_PARTY_DIR}/jsoncpp/include"
+mkdir -p "${THIRD_PARTY_DIR}/jsoncpp/include/json"
 
 rm -rf /tmp/jsoncpp
 mkdir -p /tmp/jsoncpp
 cd /tmp/jsoncpp
 curl -L -o jsoncpp.tar.gz https://github.com/open-source-parsers/jsoncpp/archive/refs/tags/1.9.5.tar.gz
 tar xzf jsoncpp.tar.gz --strip-components=1
-mkdir -p build && cd build
 
-# Build for arm64-v8a
-mkdir -p arm64-v8a && cd arm64-v8a
+echo "Building JsonCpp for arm64-v8a..."
+mkdir -p build/arm64-v8a
+cd build/arm64-v8a
 cmake -DCMAKE_BUILD_TYPE=Release \
       -DBUILD_SHARED_LIBS=ON \
       -DJSONCPP_WITH_TESTS=OFF \
@@ -72,10 +75,11 @@ cmake -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
       ../..
 make -j${NUM_CORES}
-cd ..
+cd ../..
 
-# Build for armeabi-v7a
-mkdir -p armeabi-v7a && cd armeabi-v7a
+echo "Building JsonCpp for armeabi-v7a..."
+mkdir -p build/armeabi-v7a
+cd build/armeabi-v7a
 cmake -DCMAKE_BUILD_TYPE=Release \
       -DBUILD_SHARED_LIBS=ON \
       -DJSONCPP_WITH_TESTS=OFF \
@@ -88,36 +92,57 @@ cmake -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
       ../..
 make -j${NUM_CORES}
+cd ../..
 
-# Copy JsonCpp files
-cp -r ../../include/* "${THIRD_PARTY_DIR}/jsoncpp/include/"
-cp arm64-v8a/lib/libjsoncpp.so "${THIRD_PARTY_DIR}/jsoncpp/lib/arm64-v8a/"
-cp armeabi-v7a/lib/libjsoncpp.so "${THIRD_PARTY_DIR}/jsoncpp/lib/armeabi-v7a/"
+echo "Copying JsonCpp files..."
+echo "Current directory: $(pwd)"
+ls -la include/json/
+ls -la build/arm64-v8a/lib/
+ls -la build/armeabi-v7a/lib/
+
+echo "$OLDPWD"
+echo "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/include/json/"
+ls -la "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/include/json/"
+cp include/json/* "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/include/json/"
+cp build/arm64-v8a/lib/libjsoncpp.so "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/lib/arm64-v8a/"
+cp build/armeabi-v7a/lib/libjsoncpp.so "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/lib/armeabi-v7a/"
 
 cd "$OLDPWD"
 rm -rf /tmp/jsoncpp
 
 # Download ONNX Runtime
 echo "Setting up ONNX Runtime..."
-mkdir -p "${THIRD_PARTY_DIR}/onnxruntime/lib/arm64-v8a"
-mkdir -p "${THIRD_PARTY_DIR}/onnxruntime/lib/armeabi-v7a"
-mkdir -p "${THIRD_PARTY_DIR}/onnxruntime/include"
+mkdir -p /tmp/onnx
+cd /tmp/onnx
 
-# Download and extract ONNX Runtime
-echo "Downloading ONNX Runtime..."
-curl -L -o onnxruntime-android.aar "https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.15.1/onnxruntime-android-1.15.1.aar"
+echo "Downloading ONNX Runtime from Maven Central..."
+curl -L -o onnxruntime.aar https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/1.15.1/onnxruntime-android-1.15.1.aar
+if [ $? -ne 0 ]; then
+    echo "Failed to download ONNX Runtime"
+    exit 1
+fi
 
 echo "Extracting ONNX Runtime..."
-unzip -o onnxruntime-android.aar -d /tmp/onnx
+unzip -o onnxruntime.aar
+if [ $? -ne 0 ]; then
+    echo "Failed to extract ONNX Runtime"
+    exit 1
+fi
 
-echo "Copying library files..."
-cp /tmp/onnx/jni/arm64-v8a/libonnxruntime.so "${THIRD_PARTY_DIR}/onnxruntime/lib/arm64-v8a/"
-cp /tmp/onnx/jni/armeabi-v7a/libonnxruntime.so "${THIRD_PARTY_DIR}/onnxruntime/lib/armeabi-v7a/"
+echo "Copying ONNX Runtime files..."
+mkdir -p "${OLDPWD}/app/src/main/cpp/third_party/onnxruntime/lib/arm64-v8a"
+mkdir -p "${OLDPWD}/app/src/main/cpp/third_party/onnxruntime/lib/armeabi-v7a"
+
+cp -v jni/arm64-v8a/libonnxruntime.so "${OLDPWD}/app/src/main/cpp/third_party/onnxruntime/lib/arm64-v8a/"
+cp -v jni/armeabi-v7a/libonnxruntime.so "${OLDPWD}/app/src/main/cpp/third_party/onnxruntime/lib/armeabi-v7a/"
+
+echo "ONNX Runtime setup completed"
+cd "$OLDPWD"
 
 echo "Copying header files..."
-cp /tmp/onnx/headers/* "${THIRD_PARTY_DIR}/onnxruntime/include/"
+cp headers/* "${OLDPWD}/${THIRD_PARTY_DIR}/onnxruntime/include/"
 
-# Clean up
-rm -rf /tmp/onnx onnxruntime-android.aar
+cd "$OLDPWD"
+rm -rf /tmp/onnx
 
 echo "Dependencies setup completed successfully!"
