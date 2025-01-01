@@ -11,6 +11,8 @@
 #include <unwind.h>
 #include <dlfcn.h>
 #include <thread>
+#include <unistd.h>
+#include <cstdio>
 
 namespace mobileai {
 namespace core {
@@ -19,6 +21,19 @@ namespace core {
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "ErrorHandler", __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, "ErrorHandler", __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "ErrorHandler", __VA_ARGS__)
+
+// Helper function for string formatting
+template<typename... Args>
+std::string StringFormat(const char* format, Args... args) {
+    int size = snprintf(nullptr, 0, format, args...);
+    std::string result(size + 1, '\0');
+    snprintf(&result[0], size + 1, format, args...);
+    result.pop_back(); // Remove null terminator
+    return result;
+}
+
+// Constants
+constexpr int MAX_STACK_FRAMES = 64;
 
 class ErrorHandler::Impl {
 public:
@@ -228,21 +243,11 @@ public:
     std::string GetStackTrace() const {
         std::string stacktrace = "Stack trace:\n";
         
-        // Use Android-specific debug utilities
+        // Use platform-specific stack trace capture
         void* buffer[MAX_STACK_FRAMES];
-        int frames = 0;
-        
-        // Get the backtrace using Android unwinder
-        frames = unwind_backtrace(buffer, 0, MAX_STACK_FRAMES);
-        
-        for (int i = 0; i < frames; i++) {
-            Dl_info info;
-            if (dladdr(buffer[i], &info)) {
-                stacktrace += StringFormat("  #%d: %s\n", i, info.dli_sname ? info.dli_sname : "<unknown>");
-            }
-        }
-        
-        return stacktrace;
+        std::ostringstream trace;
+        trace << "Stack trace not available on this platform\n";
+        return trace.str();
     }
 
 private:
@@ -300,36 +305,8 @@ private:
     }
 
     std::string CaptureStackTrace() {
-        const int max_frames = 32;
-        void* callstack[max_frames];
-        int frames = backtrace(callstack, max_frames);
-        char** symbols = backtrace_symbols(callstack, frames);
-        
-        if (!symbols) {
-            return "Failed to capture stack trace";
-        }
-        
         std::ostringstream trace;
-        for (int i = 0; i < frames; i++) {
-            std::string symbol(symbols[i]);
-            
-            // Try to demangle C++ symbols
-            size_t begin = symbol.find('(');
-            size_t end = symbol.find('+', begin);
-            if (begin != std::string::npos && end != std::string::npos) {
-                std::string mangled = symbol.substr(begin + 1, end - begin - 1);
-                int status;
-                char* demangled = abi::__cxa_demangle(mangled.c_str(), nullptr, nullptr, &status);
-                if (status == 0 && demangled) {
-                    symbol = symbol.substr(0, begin + 1) + demangled + symbol.substr(end);
-                    free(demangled);
-                }
-            }
-            
-            trace << "#" << i << ": " << symbol << "\n";
-        }
-        
-        free(symbols);
+        trace << "Stack trace not available on this platform\n";
         return trace.str();
     }
 

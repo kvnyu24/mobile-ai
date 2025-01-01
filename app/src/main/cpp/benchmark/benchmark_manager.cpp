@@ -1,4 +1,4 @@
-#include "benchmark_manager.h"
+#include "benchmark/benchmark_manager.h"
 #include <android/log.h>
 #include <fstream>
 #include <json/json.h>
@@ -13,6 +13,16 @@
 
 namespace mobileai {
 namespace benchmark {
+
+namespace {
+using std::string;
+using std::vector;
+using std::chrono::system_clock;
+using std::filesystem::path;
+using std::filesystem::directory_iterator;
+using std::filesystem::exists;
+using std::filesystem::create_directories;
+}  // namespace
 
 class BenchmarkManager::Impl {
 public:
