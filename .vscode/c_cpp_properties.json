@@ -11,21 +11,22 @@
                 "${workspaceFolder}/app/src/main/cpp/inference",
                 "${workspaceFolder}/app/src/main/cpp/monitoring",
                 "${workspaceFolder}/app/src/main/cpp/benchmark",
+                "${workspaceFolder}/app/src/main/cpp/third_party/jsoncpp/include",
                 "${workspaceFolder}/app/src/main/cpp/third_party/tensorflow/include",
                 "${workspaceFolder}/app/src/main/cpp/third_party/pytorch/include",
                 "${workspaceFolder}/app/src/main/cpp/third_party/onnxruntime/include",
                 "${workspaceFolder}/app/src/main/cpp/third_party/neuropilot/include",
                 "${workspaceFolder}/app/src/main/cpp/third_party/snapdragon/include",
-                "${workspaceFolder}/app/src/main/cpp/third_party/jsoncpp/include",
                 "/opt/homebrew/include",
-                "/opt/homebrew/include/json"
+                "/opt/homebrew/include/json",
+                "/opt/homebrew/share/android-ndk/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include"
             ],
             "defines": ["__ANDROID__", "ANDROID", "USE_NEON", "USE_OPENMP"],
             "macFrameworkPath": [],
             "compilerPath": "/Library/Developer/CommandLineTools/usr/bin/c++",
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "macos-clang-arm64",
+            "intelliSenseMode": "macos-clang-x64",
             "compileCommands": "${workspaceFolder}/compile_commands.json",
             "configurationProvider": "ms-vscode.cmake-tools"
         }
