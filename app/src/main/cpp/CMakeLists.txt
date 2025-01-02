@@ -28,9 +28,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(jsoncpp)
 
-# TensorFlow Lite configuration
-set(TFLITE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/tensorflow")
-
 # Add source files
 file(GLOB_RECURSE SOURCES
     "core/*.cpp" "core/*.h"
@@ -52,13 +49,7 @@ target_include_directories(${CMAKE_PROJECT_NAME}
     ${ANDROID_NDK}/sources/android/log/include
     ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include
     ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/c++/v1
-    ${TFLITE_ROOT}/include
-)
-
-# Link directories
-target_link_directories(${CMAKE_PROJECT_NAME}
-    PRIVATE
-    ${TFLITE_ROOT}/lib
+    ${ANDROID_NDK}/sources/tensorflow/include
 )
 
 # Link libraries
@@ -67,6 +58,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     jsoncpp_lib
     android
     log
-    tensorflowlite
+    ${ANDROID_NDK}/sources/tensorflow/libs/${ANDROID_ABI}/libtensorflowlite.so
     nlohmann_json::nlohmann_json
 )

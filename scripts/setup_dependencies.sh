@@ -39,7 +39,9 @@ echo "Using Android NDK at: $ANDROID_NDK"
 
 # Set up directories
 THIRD_PARTY_DIR="app/src/main/cpp/third_party"
-mkdir -p "$THIRD_PARTY_DIR"
+mkdir -p "$THIRD_PARTY_DIR/jsoncpp/lib/arm64-v8a"
+mkdir -p "$THIRD_PARTY_DIR/jsoncpp/lib/armeabi-v7a"
+mkdir -p "$THIRD_PARTY_DIR/jsoncpp/include/json"
 
 # Get number of CPU cores for parallel build
 if [[ "$(uname)" == "Darwin" ]]; then
@@ -48,18 +50,13 @@ else
     NUM_CORES=$(nproc)
 fi
 
-# Download and build JsonCpp
-echo "Setting up JsonCpp..."
-mkdir -p "${THIRD_PARTY_DIR}/jsoncpp/lib/arm64-v8a"
-mkdir -p "${THIRD_PARTY_DIR}/jsoncpp/lib/armeabi-v7a"
-mkdir -p "${THIRD_PARTY_DIR}/jsoncpp/include/json"
-
 rm -rf /tmp/jsoncpp
 mkdir -p /tmp/jsoncpp
 cd /tmp/jsoncpp
 curl -L -o jsoncpp.tar.gz https://github.com/open-source-parsers/jsoncpp/archive/refs/tags/1.9.5.tar.gz
 tar xzf jsoncpp.tar.gz --strip-components=1
 
+# Build for arm64-v8a
 echo "Building JsonCpp for arm64-v8a..."
 mkdir -p build/arm64-v8a
 cd build/arm64-v8a
@@ -77,6 +74,7 @@ cmake -DCMAKE_BUILD_TYPE=Release \
 make -j${NUM_CORES}
 cd ../..
 
+# Build for armeabi-v7a
 echo "Building JsonCpp for armeabi-v7a..."
 mkdir -p build/armeabi-v7a
 cd build/armeabi-v7a
@@ -95,17 +93,17 @@ make -j${NUM_CORES}
 cd ../..
 
 echo "Copying JsonCpp files..."
-echo "Current directory: $(pwd)"
-ls -la include/json/
-ls -la build/arm64-v8a/lib/
-ls -la build/armeabi-v7a/lib/
+# Create directories if they don't exist
+mkdir -p "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/include/json"
+mkdir -p "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/lib/arm64-v8a"
+mkdir -p "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/lib/armeabi-v7a"
 
-echo "$OLDPWD"
-echo "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/include/json/"
-ls -la "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/include/json/"
-cp include/json/* "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/include/json/"
-cp build/arm64-v8a/lib/libjsoncpp.so "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/lib/arm64-v8a/"
-cp build/armeabi-v7a/lib/libjsoncpp.so "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/lib/armeabi-v7a/"
+# Copy header files from source directory
+cp -v include/json/* "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/include/json/"
+
+# Copy library files from build directories
+cp -v build/arm64-v8a/lib/libjsoncpp.so "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/lib/arm64-v8a/"
+cp -v build/armeabi-v7a/lib/libjsoncpp.so "${OLDPWD}/${THIRD_PARTY_DIR}/jsoncpp/lib/armeabi-v7a/"
 
 cd "$OLDPWD"
 rm -rf /tmp/jsoncpp
@@ -130,17 +128,17 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Copying ONNX Runtime files..."
-mkdir -p "${OLDPWD}/app/src/main/cpp/third_party/onnxruntime/lib/arm64-v8a"
-mkdir -p "${OLDPWD}/app/src/main/cpp/third_party/onnxruntime/lib/armeabi-v7a"
+# Create directories if they don't exist
+mkdir -p "${OLDPWD}/${THIRD_PARTY_DIR}/onnxruntime/include"
+mkdir -p "${OLDPWD}/${THIRD_PARTY_DIR}/onnxruntime/lib/arm64-v8a"
+mkdir -p "${OLDPWD}/${THIRD_PARTY_DIR}/onnxruntime/lib/armeabi-v7a"
 
-cp -v jni/arm64-v8a/libonnxruntime.so "${OLDPWD}/app/src/main/cpp/third_party/onnxruntime/lib/arm64-v8a/"
-cp -v jni/armeabi-v7a/libonnxruntime.so "${OLDPWD}/app/src/main/cpp/third_party/onnxruntime/lib/armeabi-v7a/"
+# Copy library files
+cp -v jni/arm64-v8a/libonnxruntime.so "${OLDPWD}/${THIRD_PARTY_DIR}/onnxruntime/lib/arm64-v8a/"
+cp -v jni/armeabi-v7a/libonnxruntime.so "${OLDPWD}/${THIRD_PARTY_DIR}/onnxruntime/lib/armeabi-v7a/"
 
-echo "ONNX Runtime setup completed"
-cd "$OLDPWD"
-
-echo "Copying header files..."
-cp headers/* "${OLDPWD}/${THIRD_PARTY_DIR}/onnxruntime/include/"
+# Copy header files
+cp -rv headers/* "${OLDPWD}/${THIRD_PARTY_DIR}/onnxruntime/include/"
 
 cd "$OLDPWD"
 rm -rf /tmp/onnx
