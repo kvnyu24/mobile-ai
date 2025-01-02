@@ -5,7 +5,7 @@
 #include <thread>
 #include <sstream>
 #include <filesystem>
-#include <nlohmann/json.hpp>
+#include <json/json.h>
 #include "../inference/model_engine.h"
 #include "../hardware/hardware_accelerator.h"
 
@@ -359,17 +359,18 @@ private:
 
     bool ExportToJson(const std::string& output_path,
                      const std::vector<BenchmarkResult>& results) {
-        json j = json::array();
+        Json::Value root(Json::arrayValue);
         
         for (const auto& result : results) {
-            json result_json;
+            Json::Value result_json;
             result_json["inference_time_ms"] = result.inference_time_ms;
             result_json["memory_usage_mb"] = result.memory_usage_mb;
             result_json["power_usage_mw"] = result.power_usage_mw;
             result_json["batch_size"] = result.batch_size;
             result_json["accelerator_type"] = result.accelerator_type;
             result_json["model_format"] = result.model_format;
-            result_json["timestamp"] = std::chrono::system_clock::to_time_t(result.timestamp);
+            result_json["timestamp"] = static_cast<Json::UInt64>(
+                std::chrono::system_clock::to_time_t(result.timestamp));
             
             if (result.thermal_throttling_percent) {
                 result_json["thermal_throttling_percent"] = *result.thermal_throttling_percent;
@@ -381,15 +382,18 @@ private:
                 result_json["gpu_utilization_percent"] = *result.gpu_utilization_percent;
             }
             
-            j.push_back(result_json);
+            root.append(result_json);
         }
 
+        Json::StreamWriterBuilder writer;
+        writer["indentation"] = "    ";
         std::ofstream file(output_path);
         if (!file.is_open()) {
             return false;
         }
         
-        file << j.dump(4);
+        std::string document = Json::writeString(writer, root);
+        file << document;
         return true;
     }
 };
