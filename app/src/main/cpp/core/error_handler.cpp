@@ -2,7 +2,7 @@
 #include <android/log.h>
 #include <chrono>
 #include <fstream>
-#include <json/json.h>
+#include <nlohmann/json.hpp>
 #include <unordered_map>
 #include <mutex>
 #include <sstream>
@@ -17,6 +17,10 @@
 namespace mobileai {
 namespace core {
 
+using namespace std;
+using namespace std::chrono;
+using json = nlohmann::json;
+
 // Define logging macros consistent with other files
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "ErrorHandler", __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, "ErrorHandler", __VA_ARGS__)
@@ -24,9 +28,9 @@ namespace core {
 
 // Helper function for string formatting
 template<typename... Args>
-std::string StringFormat(const char* format, Args... args) {
+string StringFormat(const char* format, Args... args) {
     int size = snprintf(nullptr, 0, format, args...);
-    std::string result(size + 1, '\0');
+    string result(size + 1, '\0');
     snprintf(&result[0], size + 1, format, args...);
     result.pop_back(); // Remove null terminator
     return result;
@@ -180,27 +184,25 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         
         try {
-            Json::Value root(Json::arrayValue);
+            json root = json::array();
             for (const auto& error : error_history_) {
-                Json::Value errorObj;
+                json errorObj;
                 errorObj["message"] = error.message;
                 errorObj["severity"] = static_cast<int>(error.severity);
                 errorObj["category"] = static_cast<int>(error.category);
                 errorObj["component"] = error.component;
                 errorObj["stack_trace"] = error.stack_trace;
                 errorObj["device_info"] = error.device_info;
-                errorObj["timestamp"] = Json::Value::Int64(error.timestamp);
-                root.append(errorObj);
+                errorObj["timestamp"] = error.timestamp;
+                root.push_back(errorObj);
             }
 
-            Json::StreamWriterBuilder writer;
-            writer["indentation"] = "    ";  // Pretty print for better readability
             std::ofstream file(path);
             if (!file.is_open()) {
                 LOGE("Failed to open file for writing: %s", path.c_str());
                 return false;
             }
-            file << Json::writeString(writer, root);
+            file << root.dump(4);
             LOGI("Successfully exported error logs to %s", path.c_str());
             return true;
         } catch (const std::exception& e) {

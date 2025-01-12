@@ -132,7 +132,7 @@ public:
         HardwareAccelerator::PerformanceMetrics* metrics = nullptr) {
 #ifdef PLATFORM_ANDROID
         if (!neuropilot_handle_) {
-            return HardwareAccelerator::ErrorCode::NOT_INITIALIZED;
+            return HardwareAccelerator::ErrorCode::INITIALIZATION_FAILED;
         }
 
         neuropilot::Buffer input_buffer;
@@ -148,16 +148,16 @@ public:
         
         if (neuropilot::Execute(neuropilot_handle_, &input_buffer, &output_buffer, thread_count_) != neuropilot::NO_ERROR) {
             LOG_ERROR("Failed to execute inference");
-            return HardwareAccelerator::ErrorCode::INFERENCE_ERROR;
+            return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
         }
 
         auto end = std::chrono::high_resolution_clock::now();
         last_inference_time_ms_ = std::chrono::duration<float, std::milli>(end - start).count();
 
         if (metrics) {
-            metrics->inference_time_ms = last_inference_time_ms_;
-            metrics->power_consumption = GetPowerConsumption();
-            metrics->utilization = GetUtilization();
+            metrics->inferenceTimeMs = last_inference_time_ms_;
+            metrics->powerConsumptionMw = GetPowerConsumption();
+            metrics->utilizationPercent = GetUtilization();
         }
 #else
         LOG_ERROR("MTK accelerator not supported on this platform\n");
@@ -169,12 +169,12 @@ public:
     HardwareAccelerator::ErrorCode SetPowerProfile(HardwareAccelerator::PowerProfile profile) {
 #ifdef PLATFORM_ANDROID
         if (!neuropilot_handle_) {
-            return HardwareAccelerator::ErrorCode::NOT_INITIALIZED;
+            return HardwareAccelerator::ErrorCode::INITIALIZATION_FAILED;
         }
 
         neuropilot::PowerConfig config;
         switch (profile) {
-            case PowerProfile::POWER_SAVING:
+            case PowerProfile::LOW_POWER:
                 config.performance_mode = neuropilot::POWER_SAVE;
                 break;
             case PowerProfile::BALANCED:
@@ -184,12 +184,12 @@ public:
                 config.performance_mode = neuropilot::PERFORMANCE;
                 break;
             default:
-                return HardwareAccelerator::ErrorCode::INVALID_ARGUMENT;
+                return HardwareAccelerator::ErrorCode::INVALID_INPUT;
         }
 
         if (neuropilot::SetPowerConfig(neuropilot_handle_, &config) != neuropilot::NO_ERROR) {
             LOG_ERROR("Failed to set power profile");
-            return HardwareAccelerator::ErrorCode::CONFIGURATION_ERROR;
+            return HardwareAccelerator::ErrorCode::HARDWARE_ERROR;
         }
 
         current_power_profile_ = profile;
