@@ -8,6 +8,15 @@
 namespace mobileai {
 namespace hardware {
 
+#ifndef HARDWARE_ACCELERATOR_H
+#define HARDWARE_ACCELERATOR_H
+
+#if defined(__APPLE__)
+#define PLATFORM_MACOS
+#elif defined(__ANDROID__)
+#define PLATFORM_ANDROID
+#endif
+
 class HardwareAccelerator {
 public:
     // Performance metrics struct

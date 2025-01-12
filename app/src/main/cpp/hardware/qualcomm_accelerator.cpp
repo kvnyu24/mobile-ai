@@ -1,7 +1,15 @@
 #include "qualcomm_accelerator.h"
-#include <android/log.h>
 #include <chrono>
 #include <thread>
+#include <algorithm>
+
+#ifdef PLATFORM_ANDROID
+#include <android/log.h>
+#define LOG_ERROR(...) __android_log_print(ANDROID_LOG_ERROR, "QualcommAccelerator", __VA_ARGS__)
+#else
+#include <iostream>
+#define LOG_ERROR(...) fprintf(stderr, "QualcommAccelerator: " __VA_ARGS__)
+#endif
 
 namespace mobileai {
 namespace hardware {
@@ -12,7 +20,7 @@ public:
     using ErrorCode = HardwareAccelerator::ErrorCode;
     using PerformanceMetrics = HardwareAccelerator::PerformanceMetrics;
 
-    Impl() : dsp_power_level_(MIN_DSP_POWER_LEVEL), 
+    Impl() : dsp_power_level_(0), 
              fast_rpc_enabled_(false),
              cache_size_(0),
              current_power_profile_(PowerProfile::BALANCED),
@@ -23,17 +31,25 @@ public:
     ~Impl() = default;
 
     HardwareAccelerator::ErrorCode Initialize() {
+#ifdef PLATFORM_ANDROID
         // Initialize Qualcomm Neural Processing SDK
         if (!InitializeHexagonDSP()) {
-            __android_log_print(ANDROID_LOG_ERROR, "QualcommAccelerator", 
-                              "Failed to initialize Hexagon DSP");
+            LOG_ERROR("Failed to initialize Hexagon DSP");
             return ErrorCode::INITIALIZATION_FAILED;
         }
+#else
+        LOG_ERROR("Qualcomm accelerator not supported on this platform\n");
+        return ErrorCode::INITIALIZATION_FAILED;
+#endif
         return ErrorCode::SUCCESS;
     }
 
     bool IsAvailable() const {
+#ifdef PLATFORM_ANDROID
         return CheckHexagonDSPAvailability();
+#else
+        return false;
+#endif
     }
 
     bool CheckHexagonDSPAvailability() const {
@@ -79,8 +95,7 @@ public:
         }
 
         if (!success) {
-            __android_log_print(ANDROID_LOG_ERROR, "QualcommAccelerator", 
-                              "Inference execution failed");
+            LOG_ERROR("Inference execution failed");
             return ErrorCode::HARDWARE_ERROR;
         }
         return ErrorCode::SUCCESS;
