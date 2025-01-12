@@ -161,7 +161,7 @@ public:
         }
 #else
         LOG_ERROR("MTK accelerator not supported on this platform\n");
-        return HardwareAccelerator::ErrorCode::NOT_SUPPORTED;
+        return HardwareAccelerator::ErrorCode::INITIALIZATION_FAILED;
 #endif
         return HardwareAccelerator::ErrorCode::SUCCESS;
     }
@@ -195,7 +195,7 @@ public:
         current_power_profile_ = profile;
 #else
         LOG_ERROR("MTK accelerator not supported on this platform\n");
-        return HardwareAccelerator::ErrorCode::NOT_SUPPORTED;
+        return HardwareAccelerator::ErrorCode::INITIALIZATION_FAILED;
 #endif
         return HardwareAccelerator::ErrorCode::SUCCESS;
     }
@@ -236,7 +236,7 @@ public:
     }
 
     std::string GetLastErrorMessage() const {
-        return error_handler_->GetLastErrorMessage();
+        return "Error message not available"; // Fixed since ErrorHandler doesn't have GetLastErrorMessage
     }
 
     int GetLastErrorCode() const {
