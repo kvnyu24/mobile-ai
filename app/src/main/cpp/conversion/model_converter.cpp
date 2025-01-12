@@ -1,5 +1,11 @@
 #include "model_converter.h"
+#ifdef PLATFORM_ANDROID
 #include <android/log.h>
+#define LOG_ERROR(...) __android_log_print(ANDROID_LOG_ERROR, "ModelConverter", __VA_ARGS__)
+#else
+#include <iostream>
+#define LOG_ERROR(...) fprintf(stderr, "ModelConverter: " __VA_ARGS__)
+#endif
 #include <unordered_map>
 #include <filesystem>
 #include <fstream>
@@ -42,8 +48,7 @@ public:
             // Save converted model
             return SaveModel(output_path, converted_data);
         } catch (const std::exception& e) {
-            __android_log_print(ANDROID_LOG_ERROR, "ModelConverter",
-                              "Conversion error: %s", e.what());
+            LOG_ERROR("Conversion error: %s", e.what());
             return false;
         }
     }
@@ -92,8 +97,7 @@ private:
     std::vector<uint8_t> LoadModel(const std::string& path, ModelFormat format) {
         std::ifstream file(path, std::ios::binary | std::ios::ate);
         if (!file.is_open()) {
-            __android_log_print(ANDROID_LOG_ERROR, "ModelConverter", 
-                              "Failed to open model file: %s", path.c_str());
+            LOG_ERROR("Failed to open model file: %s", path.c_str());
             return std::vector<uint8_t>();
         }
 
@@ -102,8 +106,7 @@ private:
 
         std::vector<uint8_t> buffer(size);
         if (!file.read(reinterpret_cast<char*>(buffer.data()), size)) {
-            __android_log_print(ANDROID_LOG_ERROR, "ModelConverter",
-                              "Failed to read model file");
+            LOG_ERROR("Failed to read model file");
             return std::vector<uint8_t>();
         }
 
@@ -162,8 +165,7 @@ private:
                 break;
 
             default:
-                __android_log_print(ANDROID_LOG_ERROR, "ModelConverter",
-                                  "Unsupported source format");
+                LOG_ERROR("Unsupported source format");
                 break;
         }
 
