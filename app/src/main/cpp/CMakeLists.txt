@@ -95,6 +95,7 @@ file(GLOB_RECURSE SOURCES
     "inference/*.cpp" "inference/*.h"
     "monitoring/*.cpp" "monitoring/*.h"
     "benchmark/*.cpp" "benchmark/*.h"
+    "optimization/*.cpp" "optimization/*.h"
 )
 
 # Create shared library
