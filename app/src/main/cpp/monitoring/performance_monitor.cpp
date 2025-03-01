@@ -134,7 +134,7 @@ public:
                 entry["power_consumption"] = metrics.power_consumption;
                 entry["temperature"] = metrics.temperature;
                 entry["network_bandwidth"] = metrics.network_bandwidth;
-                entry["timestamp"] = std::chrono::system_clock::to_time_t(metrics.timestamp);
+                entry["timestamp"] = Json::Value::Int64(std::chrono::system_clock::to_time_t(metrics.timestamp));
                 root.append(entry);
             }
 

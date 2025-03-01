@@ -339,70 +339,70 @@ private:
     mutable std::mutex mutex_;
 };
 
-ErrorHandler::ErrorHandler() : pImpl(std::make_unique<Impl>()) {}
+ErrorHandler::ErrorHandler() : impl_(std::make_unique<Impl>()) {}
 ErrorHandler::~ErrorHandler() = default;
 
 void ErrorHandler::RegisterErrorCallback(ErrorCallback callback) {
-    pImpl->RegisterErrorCallback(callback);
+    impl_->RegisterErrorCallback(callback);
 }
 
 void ErrorHandler::RegisterRecoveryStrategy(ErrorCategory category, RecoveryStrategy strategy) {
-    pImpl->RegisterRecoveryStrategy(category, strategy);
+    impl_->RegisterRecoveryStrategy(category, strategy);
 }
 
 void ErrorHandler::HandleError(const ErrorContext& context) {
-    pImpl->HandleError(context);
+    impl_->HandleError(context);
 }
 
 void ErrorHandler::ReportError(const std::string& message,
                              ErrorSeverity severity,
                              ErrorCategory category,
                              const std::string& component) {
-    pImpl->ReportError(message, severity, category, component);
+    impl_->ReportError(message, severity, category, component);
 }
 
 bool ErrorHandler::AttemptRecovery(const ErrorContext& context) {
-    return pImpl->AttemptRecovery(context);
+    return impl_->AttemptRecovery(context);
 }
 
 void ErrorHandler::SetAutomaticRecovery(bool enabled) {
-    pImpl->SetAutomaticRecovery(enabled);
+    impl_->SetAutomaticRecovery(enabled);
 }
 
 void ErrorHandler::SetMaxRetries(int retries) {
-    pImpl->SetMaxRetries(retries);
+    impl_->SetMaxRetries(retries);
 }
 
 std::vector<ErrorContext> ErrorHandler::GetErrorHistory() const {
-    return pImpl->GetErrorHistory();
+    return impl_->GetErrorHistory();
 }
 
 void ErrorHandler::ClearErrorHistory() {
-    pImpl->ClearErrorHistory();
+    impl_->ClearErrorHistory();
 }
 
 bool ErrorHandler::ExportErrorLogs(const std::string& path) const {
-    return pImpl->ExportErrorLogs(path);
+    return impl_->ExportErrorLogs(path);
 }
 
 bool ErrorHandler::IsSystemHealthy() const {
-    return pImpl->IsSystemHealthy();
+    return impl_->IsSystemHealthy();
 }
 
 std::string ErrorHandler::GetSystemStatus() const {
-    return pImpl->GetSystemStatus();
+    return impl_->GetSystemStatus();
 }
 
 void ErrorHandler::ResetSystem() {
-    pImpl->ResetSystem();
+    impl_->ResetSystem();
 }
 
 void ErrorHandler::RetryOperation(const std::function<bool()>& operation, int max_retries) {
-    pImpl->RetryOperation(operation, max_retries);
+    impl_->RetryOperation(operation, max_retries);
 }
 
 std::string ErrorHandler::GetStackTrace() const {
-    return pImpl->GetStackTrace();
+    return impl_->GetStackTrace();
 }
 
 } // namespace core

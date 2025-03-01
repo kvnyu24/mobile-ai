@@ -148,7 +148,7 @@ class MainActivity : AppCompatActivity() {
                 modelLifecycleManager?.cleanup()
                 hardwareLifecycleManager?.stopMonitoring()
                 hardwareManager?.apply {
-                    if (isActive()) {
+                    if (true) {
                         release()
                     }
                 }

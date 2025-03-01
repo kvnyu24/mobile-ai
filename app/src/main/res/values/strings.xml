@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Mobile AI</string>
+    <string name="app_title">Mobile AI Deployment Framework</string>
     <string name="initialization_error">Initialization failed. Please check your device compatibility and try again.</string>
     <string name="hardware_init_error">Hardware acceleration initialization failed. Your device may not support required features.</string>
     <string name="no_accelerators_error">No compatible hardware accelerators found on this device</string>

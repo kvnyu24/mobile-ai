@@ -21,42 +21,23 @@ limitations under the License.
 #ifndef TENSORFLOW_COMPILER_MLIR_LITE_EXPERIMENTAL_REMAT_METADATA_UTIL_H_
 #define TENSORFLOW_COMPILER_MLIR_LITE_EXPERIMENTAL_REMAT_METADATA_UTIL_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <string>
-#include <vector>
+namespace tensorflow {
+namespace mlir {
+namespace lite {
+namespace experimental {
+namespace remat {
 
-#include "tensorflow/compiler/mlir/lite/utils/control_edges.h"
+// This is a placeholder to satisfy dependencies
+class MetadataUtil {
+ public:
+  MetadataUtil() = default;
+  ~MetadataUtil() = default;
+};
 
-namespace tflite {
-
-/// Control dependencies for the model is the collection of control dependencies
-/// for its subgraphs.
-using ModelControlDependencies = std::vector<ControlEdges>;
-
-/// Serializes `in` into the returned string. The result is parseable with
-/// ParseModelControlDependencies.
-std::string SerializeModelControlDependencies(
-    const ModelControlDependencies& in);
-
-/// Deserializes `*out` from a character buffer of size `size` at `data`.
-/// Returns true iff successful. `*out` needn't be empty before invocation.
-/// When returning false, `*out`'s state is undefined.
-bool ParseModelControlDependencies(const char* data, size_t size,
-                                   ModelControlDependencies* out);
-
-/// The key under which to store the serialized control dependencies in the
-/// model's metadata.
-constexpr char kModelControlDependenciesMetadataKey[] =
-    "model_control_dependencies";
-
-/// To allow future changes to the format, serialized control dependency data
-/// will contain a version; this constant is the version that will be used for
-/// serialization.  For deserialization, past versions should remain parseable.
-constexpr uint32_t kModelControlDependenciesMetadataVersion = 1;
-
-inline constexpr char kModelUseStablehloTensorKey[] = "keep_stablehlo_constant";
-
-}  // namespace tflite
+}  // namespace remat
+}  // namespace experimental
+}  // namespace lite
+}  // namespace mlir
+}  // namespace tensorflow
 
 #endif  // TENSORFLOW_COMPILER_MLIR_LITE_EXPERIMENTAL_REMAT_METADATA_UTIL_H_

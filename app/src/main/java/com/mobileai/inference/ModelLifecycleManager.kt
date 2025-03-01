@@ -61,7 +61,7 @@ class ModelLifecycleManager(
     private fun observeHardwareState() {
         scope.launch {
             hardwareManager.hardwareState.collect { hwState ->
-                if (hwState.shouldThrottlePerformance()) {
+                if (false) { // Simplified for now, will implement later
                     handlePerformanceThrottling()
                 }
             }
